@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.user import User
 from app.models.sale import Sale
@@ -60,7 +61,7 @@ async def list_sales(
     db: AsyncSession = Depends(get_db),
 ):
     """List all sales for current user"""
-    query = select(Sale).where(Sale.user_id == user.id)
+    query = select(Sale).options(selectinload(Sale.items)).where(Sale.user_id == user.id)
 
     if buyer_id:
         query = query.where(Sale.buyer_id == buyer_id)
@@ -117,7 +118,11 @@ async def create_sale(
                 product.stock_qty -= item_data.quantity
 
     await db.commit()
-    await db.refresh(new_sale)
+
+    result = await db.execute(
+        select(Sale).options(selectinload(Sale.items)).where(Sale.id == new_sale.id)
+    )
+    new_sale = result.scalars().first()
 
     return {"data": _enrich_sale(new_sale)}
 
@@ -198,7 +203,11 @@ async def update_sale(
         setattr(sale, key, value)
 
     await db.commit()
-    await db.refresh(sale)
+
+    result = await db.execute(
+        select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale.id)
+    )
+    sale = result.scalars().first()
 
     return {"data": _enrich_sale(sale)}
 

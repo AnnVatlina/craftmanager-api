@@ -1,6 +1,7 @@
 import asyncio
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.main import app
 from app.database import get_db, Base
@@ -86,7 +87,7 @@ async def client(async_engine):
     async with AsyncClient(app=app, base_url="http://test") as ac:
         # Clear database before each test
         async with async_session_maker() as session:
-            await session.execute("TRUNCATE users, products, materials, product_materials, buyers, sales, sale_items, expenses RESTART IDENTITY CASCADE")
+            await session.execute(text("TRUNCATE users, products, materials, product_materials, buyers, sales, sale_items, expenses RESTART IDENTITY CASCADE"))
             await session.commit()
 
         yield ac

@@ -1,12 +1,14 @@
 from typing import Optional
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.user import User
 from app.models.buyer import Buyer
 from app.models.sale import Sale
-from app.schemas.buyer import BuyerCreate, BuyerUpdate, BuyerOut
+from app.schemas.buyer import BuyerCreate, BuyerUpdate, BuyerOut, BuyerDetailOut, BuyerSaleOut
 from app.auth.dependencies import get_current_user
 
 router = APIRouter(
@@ -75,18 +77,31 @@ async def get_buyer(
     """Get buyer details with purchase history"""
     buyer = await _get_buyer(buyer_id, user, db)
 
-    # Get buyer's sales
     sales_result = await db.execute(
-        select(Sale).where(Sale.buyer_id == buyer_id)
+        select(Sale).options(selectinload(Sale.items))
+        .where((Sale.buyer_id == buyer_id) & (Sale.user_id == user.id))
     )
     sales = sales_result.scalars().all()
 
-    return {
-        "data": {
-            **BuyerOut.model_validate(buyer).model_dump(),
-            "sales_count": len(sales),
-        }
-    }
+    sale_list = [
+        BuyerSaleOut(
+            id=s.id,
+            sale_date=s.sale_date,
+            notes=s.notes,
+            total_amount=sum(
+                (i.quantity * i.price for i in s.items), Decimal("0")
+            ),
+        )
+        for s in sales
+    ]
+
+    detail = BuyerDetailOut(
+        **BuyerOut.model_validate(buyer).model_dump(),
+        sales=sale_list,
+        sales_count=len(sale_list),
+    )
+
+    return {"data": detail}
 
 
 @router.put("/{buyer_id}", response_model=dict)
