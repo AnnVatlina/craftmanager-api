@@ -40,9 +40,11 @@ target_metadata = Base.metadata
 
 def _sync_url(url: str) -> str:
     """Convert async DB URL to synchronous for Alembic migrations."""
-    return url.replace("postgresql+asyncpg://", "postgresql://").replace(
-        "postgres://", "postgresql://"
-    )
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
 
 
 def run_migrations_offline() -> None:
