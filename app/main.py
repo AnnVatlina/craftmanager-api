@@ -1,10 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.database import engine, Base
 from app.routers import auth, products, materials, buyers, sales, expenses, dashboard
+import app.models  # ensure all models are registered with Base
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 
 # Create app
 app = FastAPI(
+    lifespan=lifespan,
     title="CraftManager API",
     description="API for craft/handmade toy management system",
     version="1.0.0",
