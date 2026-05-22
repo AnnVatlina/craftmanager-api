@@ -11,4 +11,6 @@ class UserSetting(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     currency = Column(String, nullable=False, default="Br")
     categories = Column(Text, nullable=False, default="Вязаные игрушки плюш,Вязаные игрушки акрил,Лотерейные игрушки,Брелоки")
+    expense_categories = Column(Text, nullable=False, default="материалы,инструменты,реклама,прочее")
+    material_units = Column(Text, nullable=False, default="г,кг,м,мл,шт")
     low_stock_threshold = Column(Integer, nullable=False, default=5)

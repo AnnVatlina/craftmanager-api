@@ -27,10 +27,16 @@ async def _get_or_create(user: User, db: AsyncSession) -> UserSetting:
     return setting
 
 
+def _split(val: str) -> list:
+    return [c.strip() for c in val.split(",") if c.strip()]
+
+
 def _to_out(s: UserSetting) -> UserSettingsOut:
     return UserSettingsOut(
         currency=s.currency,
-        categories=[c.strip() for c in s.categories.split(",") if c.strip()],
+        categories=_split(s.categories),
+        expense_categories=_split(s.expense_categories),
+        material_units=_split(s.material_units),
         low_stock_threshold=s.low_stock_threshold,
     )
 
@@ -55,6 +61,10 @@ async def update_settings(
         setting.currency = body.currency
     if body.categories is not None:
         setting.categories = ",".join(body.categories)
+    if body.expense_categories is not None:
+        setting.expense_categories = ",".join(body.expense_categories)
+    if body.material_units is not None:
+        setting.material_units = ",".join(body.material_units)
     if body.low_stock_threshold is not None:
         setting.low_stock_threshold = body.low_stock_threshold
     await db.commit()
