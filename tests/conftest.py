@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -21,14 +20,6 @@ from datetime import datetime
 
 # Test database URL
 TEST_DATABASE_URL = "postgresql+asyncpg://craft_user:craft_pass@localhost:5433/craftmanager_test"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture
