@@ -17,10 +17,9 @@ from app.auth.utils import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def register(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
     """Register a new user"""
-    # Check if user already exists
     result = await db.execute(select(User).where(User.email == user_create.email))
     existing_user = result.scalars().first()
 
@@ -30,7 +29,6 @@ async def register(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Email already registered",
         )
 
-    # Create new user
     hashed_password = hash_password(user_create.password)
     new_user = User(email=user_create.email, hashed_password=hashed_password)
 
@@ -38,13 +36,12 @@ async def register(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_user)
 
-    return new_user
+    return {"data": UserOut.model_validate(new_user)}
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=dict)
 async def login(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
     """Login and get access/refresh tokens"""
-    # Find user
     result = await db.execute(select(User).where(User.email == user_create.email))
     user = result.scalars().first()
 
@@ -54,18 +51,19 @@ async def login(user_create: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Invalid email or password",
         )
 
-    # Create tokens
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
     return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
+        "data": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
     }
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=dict)
 async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     """Refresh access token using refresh token"""
     payload = decode_token(request.refresh_token)
@@ -83,7 +81,6 @@ async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends
             detail="Invalid token",
         )
 
-    # Verify user exists
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
 
@@ -93,11 +90,12 @@ async def refresh_token(request: RefreshTokenRequest, db: AsyncSession = Depends
             detail="User not found",
         )
 
-    # Create new access token
     access_token = create_access_token(data={"sub": user_id})
 
     return {
-        "access_token": access_token,
-        "refresh_token": request.refresh_token,
-        "token_type": "bearer",
+        "data": {
+            "access_token": access_token,
+            "refresh_token": request.refresh_token,
+            "token_type": "bearer",
+        }
     }
