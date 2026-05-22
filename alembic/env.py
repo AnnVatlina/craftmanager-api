@@ -38,22 +38,17 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def _sync_url(url: str) -> str:
+    """Convert async DB URL to synchronous for Alembic migrations."""
+    return url.replace("postgresql+asyncpg://", "postgresql://").replace(
+        "postgres://", "postgresql://"
+    )
+
+
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a SQLALCHEMY_DATABASE_URL set in os.environ by default for
-    the migrations system to work.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
     import os
 
-    url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
+    url = _sync_url(os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname"))
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -66,15 +61,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
     import os
 
-    url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
+    url = _sync_url(os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname"))
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = url
     connectable = engine_from_config(
