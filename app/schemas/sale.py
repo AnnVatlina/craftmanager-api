@@ -23,14 +23,14 @@ class SaleItemOut(BaseModel):
 
 
 class SaleCreate(BaseModel):
-    buyer_id: Optional[UUID] = None
+    channel_id: Optional[UUID] = None
     sale_date: date
     notes: Optional[str] = None
     items: List[SaleItemCreate]
 
 
 class SaleUpdate(BaseModel):
-    buyer_id: Optional[UUID] = None
+    channel_id: Optional[UUID] = None
     sale_date: Optional[date] = None
     notes: Optional[str] = None
 
@@ -38,10 +38,10 @@ class SaleUpdate(BaseModel):
 class SaleOut(BaseModel):
     id: UUID
     user_id: UUID
-    buyer_id: Optional[UUID] = None
+    channel_id: Optional[UUID] = None
     sale_date: date
     notes: Optional[str] = None
-    total_amount: Optional[Decimal] = None  # Calculated field
+    total_amount: Optional[Decimal] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -49,4 +49,4 @@ class SaleOut(BaseModel):
 
 class SaleDetailOut(SaleOut):
     items: Optional[List[SaleItemOut]] = []
-    buyer_name: Optional[str] = None
+    channel_name: Optional[str] = None

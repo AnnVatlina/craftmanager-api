@@ -8,7 +8,7 @@ from app.models import (
     Product,
     Material,
     ProductMaterial,
-    Buyer,
+    SalesChannel,
     Sale,
     SaleItem,
     Expense,
@@ -158,16 +158,15 @@ async def product(user, db_session):
 
 
 @pytest.fixture
-async def buyer(user, db_session):
-    """Create a test buyer"""
-    buyer = Buyer(
+async def channel(user, db_session):
+    """Create a test sales channel"""
+    ch = SalesChannel(
         id=uuid.uuid4(),
         user_id=user.id,
-        name="Test Buyer",
-        contact="+1234567890",
-        notes="Test buyer",
+        name="Test Fair",
+        type="ярмарка",
     )
-    db_session.add(buyer)
+    db_session.add(ch)
     await db_session.commit()
-    await db_session.refresh(buyer)
-    return buyer
+    await db_session.refresh(ch)
+    return ch

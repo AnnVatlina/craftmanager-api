@@ -10,7 +10,7 @@ async def test_create_sale(client: AsyncClient, auth_headers, product):
         "/api/v1/sales",
         headers=auth_headers,
         json={
-            "buyer_id": None,
+            "channel_id": None,
             "sale_date": "2024-01-15",
             "notes": "Test sale",
             "items": [
