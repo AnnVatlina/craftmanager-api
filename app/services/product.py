@@ -15,4 +15,5 @@ async def calc_product_cost_price(
         .where(ProductMaterial.product_id == product.id)
     )
     rows = result.all()
-    return sum((row.quantity * row.price_per_unit for row in rows), Decimal("0"))
+    total = sum((row.quantity * row.price_per_unit for row in rows), Decimal("0"))
+    return total.quantize(Decimal("0.01"))

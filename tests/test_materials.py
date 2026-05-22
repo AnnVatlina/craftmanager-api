@@ -72,7 +72,7 @@ async def test_update_material(client: AsyncClient, auth_headers, material):
     assert response.status_code == 200
     data = response.json()
     assert data["data"]["name"] == "Updated Cotton"
-    assert data["data"]["price_per_unit"] == "15.00"
+    assert data["data"]["price_per_unit"] == "15.0000"
 
 
 @pytest.mark.asyncio

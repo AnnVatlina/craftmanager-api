@@ -24,7 +24,7 @@ async def test_create_sale(client: AsyncClient, auth_headers, product):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["data"]["total_amount"] == "100.0"
+    assert data["data"]["total_amount"] == "100.00"
 
 
 @pytest.mark.asyncio

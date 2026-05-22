@@ -134,17 +134,18 @@ async def get_sale(
     db: AsyncSession = Depends(get_db),
 ):
     """Get sale details"""
-    sale = await _get_sale(sale_id, user, db)
-
-    # Load items
-    items_result = await db.execute(
-        select(SaleItem).where(SaleItem.sale_id == sale.id)
+    result = await db.execute(
+        select(Sale)
+        .options(selectinload(Sale.items))
+        .where((Sale.id == sale_id) & (Sale.user_id == user.id))
     )
-    items = items_result.scalars().all()
+    sale = result.scalars().first()
+    if not sale:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sale not found")
 
     # Enrich items with product names
     enriched_items = []
-    for item in items:
+    for item in sale.items:
         product_name = None
         if item.product_id:
             prod_result = await db.execute(

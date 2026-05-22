@@ -89,7 +89,7 @@ async def test_add_material_to_product(client: AsyncClient, auth_headers, produc
     assert response.status_code == 201
     data = response.json()
     assert data["data"]["material_id"] == str(material.id)
-    assert data["data"]["quantity"] == "100.00"
+    assert data["data"]["quantity"] == "100.0000"
 
 
 @pytest.mark.asyncio
@@ -154,7 +154,7 @@ async def test_product_cost_price_calculation(client: AsyncClient, auth_headers,
     assert response.status_code == 200
     data = response.json()
     # cost_price = 10.0 * 10.00 = 100.00
-    assert data["data"]["cost_price"] == "100.0"
+    assert data["data"]["cost_price"] == "100.00"
 
 
 @pytest.mark.asyncio
