@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base
-from app.routers import auth, products, materials, buyers, sales, expenses, dashboard
+from app.routers import auth, products, materials, buyers, sales, expenses, dashboard, settings
 import app.models  # ensure all models are registered with Base
 
 
@@ -39,6 +39,7 @@ app.include_router(buyers.router, prefix="/api/v1")
 app.include_router(sales.router, prefix="/api/v1")
 app.include_router(expenses.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(settings.router, prefix="/api/v1")
 
 
 @app.get("/health")
