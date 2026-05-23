@@ -24,10 +24,11 @@ from app.models import (
     Product,
     Material,
     ProductMaterial,
-    Buyer,
+    SalesChannel,
     Sale,
     SaleItem,
     Expense,
+    UserSetting,
 )
 
 target_metadata = Base.metadata
