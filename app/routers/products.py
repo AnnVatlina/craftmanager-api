@@ -1,7 +1,9 @@
+import math
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 from app.database import get_db
 from app.models.user import User
 from app.models.product import Product
@@ -55,31 +57,51 @@ async def _get_product(
 async def list_products(
     category: Optional[str] = None,
     in_stock: Optional[bool] = None,
+    page: int = 1,
+    per_page: int = 20,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all products for current user"""
-    query = select(Product).where(Product.user_id == user.id)
+    """List all products for current user with pagination"""
+    def _apply_filters(q):
+        if category:
+            q = q.where(Product.category == category)
+        if in_stock is not None:
+            q = q.where(Product.stock_qty > 0) if in_stock else q.where(Product.stock_qty == 0)
+        return q
 
-    if category:
-        query = query.where(Product.category == category)
+    agg_query = _apply_filters(
+        select(
+            func.count(Product.id),
+            func.coalesce(func.sum(Product.stock_qty * Product.sale_price), 0),
+        ).where(Product.user_id == user.id)
+    )
+    agg_result = await db.execute(agg_query)
+    total, total_stock_value = agg_result.first()
 
-    if in_stock is not None:
-        if in_stock:
-            query = query.where(Product.stock_qty > 0)
-        else:
-            query = query.where(Product.stock_qty == 0)
+    offset = (page - 1) * per_page
+    page_query = _apply_filters(
+        select(Product).where(Product.user_id == user.id)
+    ).order_by(Product.created_at.desc()).offset(offset).limit(per_page)
 
-    result = await db.execute(query)
+    result = await db.execute(page_query)
     products = result.scalars().all()
 
-    # Enrich products with cost prices
     enriched = []
     for product in products:
         cost_price = await calc_product_cost_price(db, product)
         enriched.append(_enrich_product(product, cost_price))
 
-    return {"data": enriched, "meta": {"total": len(enriched)}}
+    return {
+        "data": enriched,
+        "meta": {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": math.ceil(total / per_page) if total else 1,
+            "total_stock_value": total_stock_value,
+        },
+    }
 
 
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
