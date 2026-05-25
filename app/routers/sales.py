@@ -100,36 +100,30 @@ async def get_sale(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Sale).options(selectinload(Sale.items))
+        select(Sale)
+        .options(
+            selectinload(Sale.items).selectinload(SaleItem.product),
+            selectinload(Sale.channel),
+        )
         .where((Sale.id == sale_id) & (Sale.user_id == user.id))
     )
     sale = result.scalars().first()
     if not sale:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sale not found")
 
-    enriched_items = []
-    for item in sale.items:
-        product_name = None
-        if item.product_id:
-            prod_result = await db.execute(select(Product).where(Product.id == item.product_id))
-            product = prod_result.scalars().first()
-            product_name = product.name if product else None
-        enriched_items.append(SaleItemOut(
+    enriched_items = [
+        SaleItemOut(
             id=item.id, sale_id=item.sale_id, product_id=item.product_id,
-            quantity=item.quantity, price=item.price, product_name=product_name,
-        ))
-
-    channel_name = None
-    if sale.channel_id:
-        from app.models.sales_channel import SalesChannel
-        ch_result = await db.execute(select(SalesChannel).where(SalesChannel.id == sale.channel_id))
-        ch = ch_result.scalars().first()
-        channel_name = ch.name if ch else None
+            quantity=item.quantity, price=item.price,
+            product_name=item.product.name if item.product else None,
+        )
+        for item in sale.items
+    ]
 
     sale_detail = SaleDetailOut(
         **SaleOut(**sale.__dict__, total_amount=calc_sale_total_amount(sale)).model_dump(),
         items=enriched_items,
-        channel_name=channel_name,
+        channel_name=sale.channel.name if sale.channel else None,
     )
     return {"data": sale_detail}
 

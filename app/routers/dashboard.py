@@ -72,11 +72,18 @@ async def get_top_products(
     db: AsyncSession = Depends(get_db),
 ):
     """Get top products by revenue"""
-    query = select(
-        SaleItem.product_id,
-        func.sum(SaleItem.quantity * SaleItem.price).label("revenue"),
-        func.sum(SaleItem.quantity).label("quantity"),
-    ).join(Sale).where(Sale.user_id == user.id).group_by(SaleItem.product_id)
+    query = (
+        select(
+            SaleItem.product_id,
+            Product.name.label("product_name"),
+            func.sum(SaleItem.quantity * SaleItem.price).label("revenue"),
+            func.sum(SaleItem.quantity).label("quantity"),
+        )
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .outerjoin(Product, SaleItem.product_id == Product.id)
+        .where(Sale.user_id == user.id)
+        .group_by(SaleItem.product_id, Product.name)
+    )
 
     if date_from:
         query = query.where(Sale.sale_date >= date_from)
@@ -86,24 +93,12 @@ async def get_top_products(
     query = query.order_by(desc("revenue")).limit(limit)
 
     result = await db.execute(query)
-    top_products = result.all()
+    rows = result.all()
 
-    # Enrich with product names
-    enriched = []
-    for product_id, revenue, quantity in top_products:
-        if product_id:
-            prod_result = await db.execute(
-                select(Product).where(Product.id == product_id)
-            )
-            product = prod_result.scalars().first()
-            enriched.append({
-                "product_id": product_id,
-                "product_name": product.name if product else None,
-                "revenue": revenue,
-                "quantity": quantity,
-            })
-
-    return {"data": enriched}
+    return {"data": [
+        {"product_id": r.product_id, "product_name": r.product_name, "revenue": r.revenue, "quantity": r.quantity}
+        for r in rows if r.product_id
+    ]}
 
 
 @router.get("/low-stock", response_model=dict)
