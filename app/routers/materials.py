@@ -1,11 +1,13 @@
 from typing import Optional
 from decimal import Decimal
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.database import get_db
 from app.models.user import User
 from app.models.material import Material
+from app.models.material_purchase import MaterialPurchase
 from app.schemas.material import (
     MaterialCreate,
     MaterialUpdate,
@@ -57,15 +59,27 @@ async def create_material(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new material"""
+    qty = material_create.stock_qty or Decimal("0")
     new_material = Material(
         user_id=user.id,
         name=material_create.name,
         unit=material_create.unit,
         price_per_unit=material_create.price_per_unit,
-        stock_qty=material_create.stock_qty or 0,
+        stock_qty=qty,
     )
-
     db.add(new_material)
+    await db.flush()
+
+    if qty > 0:
+        db.add(MaterialPurchase(
+            user_id=user.id,
+            material_id=new_material.id,
+            purchased_at=date.today(),
+            quantity=qty,
+            price_per_unit=material_create.price_per_unit,
+            total_cost=(qty * material_create.price_per_unit).quantize(Decimal("0.01")),
+        ))
+
     await db.commit()
     await db.refresh(new_material)
 
@@ -125,9 +139,19 @@ async def restock_material(
     """Restock a material"""
     material = await _get_material(material_id, user, db)
 
+    price = restock.price_per_unit or material.price_per_unit
     material.stock_qty += restock.qty
     if restock.price_per_unit:
         material.price_per_unit = restock.price_per_unit
+
+    db.add(MaterialPurchase(
+        user_id=user.id,
+        material_id=material.id,
+        purchased_at=restock.purchased_at or date.today(),
+        quantity=restock.qty,
+        price_per_unit=price,
+        total_cost=(restock.qty * price).quantize(Decimal("0.01")),
+    ))
 
     await db.commit()
     await db.refresh(material)

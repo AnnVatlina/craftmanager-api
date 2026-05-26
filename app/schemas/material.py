@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
@@ -34,3 +34,4 @@ class MaterialOut(BaseModel):
 class MaterialRestockRequest(BaseModel):
     qty: Decimal
     price_per_unit: Optional[Decimal] = None
+    purchased_at: Optional[date] = None  # defaults to today server-side if omitted

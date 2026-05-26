@@ -30,6 +30,7 @@ from app.models import (
     Expense,
     UserSetting,
     FairItem,
+    MaterialPurchase,
 )
 
 target_metadata = Base.metadata

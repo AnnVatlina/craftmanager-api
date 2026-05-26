@@ -11,6 +11,7 @@ from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.expense import Expense
 from app.models.product import Product
+from app.models.material_purchase import MaterialPurchase
 from app.auth.dependencies import get_current_user
 
 router = APIRouter(
@@ -50,14 +51,28 @@ async def get_summary(
         expenses_query = expenses_query.where(Expense.expense_date <= date_to)
 
     expenses_result = await db.execute(expenses_query)
-    total_expenses = expenses_result.scalar() or Decimal("0")
+    manual_expenses = expenses_result.scalar() or Decimal("0")
 
+    # Material purchase costs
+    material_query = select(func.sum(MaterialPurchase.total_cost)).where(
+        MaterialPurchase.user_id == user.id
+    )
+    if date_from:
+        material_query = material_query.where(MaterialPurchase.purchased_at >= date_from)
+    if date_to:
+        material_query = material_query.where(MaterialPurchase.purchased_at <= date_to)
+    material_result = await db.execute(material_query)
+    material_expenses = material_result.scalar() or Decimal("0")
+
+    total_expenses = manual_expenses + material_expenses
     profit = total_revenue - total_expenses
 
     return {
         "data": {
             "total_revenue": total_revenue,
             "total_expenses": total_expenses,
+            "manual_expenses": manual_expenses,
+            "material_expenses": material_expenses,
             "profit": profit,
         }
     }
