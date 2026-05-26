@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 
@@ -17,6 +18,8 @@ class FairItemOut(BaseModel):
     id: UUID
     product_id: UUID
     product_name: str
+    category: Optional[str] = None
+    sale_price: Decimal
     planned_qty: int
     stock_qty: int
     need_to_make: int  # max(0, planned_qty - stock_qty), computed server-side

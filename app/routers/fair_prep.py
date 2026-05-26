@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy import asc, desc
 from app.database import get_db
 from app.models.user import User
+from app.models.product import Product
 from app.models.sales_channel import SalesChannel
 from app.models.fair_item import FairItem
 from app.schemas.fair_prep import (
@@ -17,6 +20,13 @@ router = APIRouter(
     tags=["fair-prep"],
     dependencies=[Depends(get_current_user)],
 )
+
+_SORT_OPTIONS = {
+    "name":       asc(Product.name),
+    "category":   (asc(Product.category), asc(Product.name)),
+    "price_asc":  (asc(Product.sale_price), asc(Product.name)),
+    "price_desc": (desc(Product.sale_price), asc(Product.name)),
+}
 
 
 async def _get_channel(channel_id, user: User, db: AsyncSession) -> SalesChannel:
@@ -45,12 +55,40 @@ async def _get_item(item_id, channel_id, user: User, db: AsyncSession) -> FairIt
     return item
 
 
+async def _load_items(
+    channel_id,
+    user: User,
+    db: AsyncSession,
+    category: Optional[str],
+    sort_by: Optional[str],
+) -> list[FairItem]:
+    order = _SORT_OPTIONS.get(sort_by or "name", asc(Product.name))
+    order_clauses = order if isinstance(order, tuple) else (order,)
+
+    query = (
+        select(FairItem)
+        .join(Product, FairItem.product_id == Product.id)
+        .options(selectinload(FairItem.product))
+        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
+    )
+    if category:
+        query = query.where(Product.category == category)
+
+    for clause in order_clauses:
+        query = query.order_by(clause)
+
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
 def _build_item_out(item: FairItem) -> FairItemOut:
     stock = item.product.stock_qty
     return FairItemOut(
         id=item.id,
         product_id=item.product_id,
         product_name=item.product.name,
+        category=item.product.category,
+        sale_price=item.product.sale_price,
         planned_qty=item.planned_qty,
         stock_qty=stock,
         need_to_make=max(0, item.planned_qty - stock),
@@ -88,9 +126,7 @@ async def list_fair_channels(
     )
     channels = result.scalars().all()
     return {"data": [
-        FairChannelRef(
-            id=c.id, name=c.name, event_date=c.event_date, location=c.location
-        )
+        FairChannelRef(id=c.id, name=c.name, event_date=c.event_date, location=c.location)
         for c in channels
     ]}
 
@@ -98,18 +134,14 @@ async def list_fair_channels(
 @router.get("/{channel_id}", response_model=dict)
 async def get_fair_prep(
     channel_id,
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, pattern="^(name|category|price_asc|price_desc)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get the full preparation list for a channel with computed fields."""
+    """Get the preparation list with optional category filter and sort."""
     channel = await _get_channel(channel_id, user, db)
-    result = await db.execute(
-        select(FairItem)
-        .options(selectinload(FairItem.product))
-        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
-        .order_by(FairItem.product_id)
-    )
-    items = result.scalars().all()
+    items = await _load_items(channel_id, user, db, category, sort_by)
     return {"data": _build_prep_out(channel, items)}
 
 
@@ -117,10 +149,12 @@ async def get_fair_prep(
 async def add_item(
     channel_id,
     body: FairItemAdd,
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, pattern="^(name|category|price_asc|price_desc)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add a product to the preparation list. Returns the updated full prep list."""
+    """Add a product to the list. Returns the updated list with current filter/sort."""
     channel = await _get_channel(channel_id, user, db)
 
     existing = await db.execute(
@@ -129,27 +163,17 @@ async def add_item(
         )
     )
     if existing.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Product already in the list",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Product already in the list")
 
-    item = FairItem(
+    db.add(FairItem(
         user_id=user.id,
         channel_id=channel_id,
         product_id=body.product_id,
         planned_qty=body.planned_qty,
-    )
-    db.add(item)
+    ))
     await db.commit()
 
-    result = await db.execute(
-        select(FairItem)
-        .options(selectinload(FairItem.product))
-        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
-        .order_by(FairItem.product_id)
-    )
-    items = result.scalars().all()
+    items = await _load_items(channel_id, user, db, category, sort_by)
     return {"data": _build_prep_out(channel, items)}
 
 
@@ -158,22 +182,18 @@ async def update_item(
     channel_id,
     item_id,
     body: FairItemUpdate,
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, pattern="^(name|category|price_asc|price_desc)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update planned quantity. Returns the updated full prep list."""
+    """Update planned quantity. Returns the updated list with current filter/sort."""
     channel = await _get_channel(channel_id, user, db)
     item = await _get_item(item_id, channel_id, user, db)
     item.planned_qty = body.planned_qty
     await db.commit()
 
-    result = await db.execute(
-        select(FairItem)
-        .options(selectinload(FairItem.product))
-        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
-        .order_by(FairItem.product_id)
-    )
-    items = result.scalars().all()
+    items = await _load_items(channel_id, user, db, category, sort_by)
     return {"data": _build_prep_out(channel, items)}
 
 
@@ -181,20 +201,16 @@ async def update_item(
 async def remove_item(
     channel_id,
     item_id,
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, pattern="^(name|category|price_asc|price_desc)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a product from the list. Returns the updated full prep list."""
+    """Remove a product from the list. Returns the updated list with current filter/sort."""
     channel = await _get_channel(channel_id, user, db)
     item = await _get_item(item_id, channel_id, user, db)
     await db.delete(item)
     await db.commit()
 
-    result = await db.execute(
-        select(FairItem)
-        .options(selectinload(FairItem.product))
-        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
-        .order_by(FairItem.product_id)
-    )
-    items = result.scalars().all()
+    items = await _load_items(channel_id, user, db, category, sort_by)
     return {"data": _build_prep_out(channel, items)}
