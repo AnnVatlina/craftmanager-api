@@ -30,6 +30,26 @@ async def lifespan(app: FastAPI):
                 END IF;
             END $$;
         """))
+        # Backfill material_purchases for materials that existed before this table was introduced.
+        # Runs on every startup but is idempotent: only inserts where no purchase record exists yet.
+        await conn.execute(text("""
+            INSERT INTO material_purchases
+                (id, user_id, material_id, purchased_at, quantity, price_per_unit, total_cost, created_at)
+            SELECT
+                gen_random_uuid(),
+                m.user_id,
+                m.id,
+                m.created_at::date,
+                m.stock_qty,
+                m.price_per_unit,
+                ROUND(m.stock_qty * m.price_per_unit, 2),
+                NOW()
+            FROM materials m
+            WHERE m.stock_qty > 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM material_purchases mp WHERE mp.material_id = m.id
+              )
+        """))
     yield
 
 
