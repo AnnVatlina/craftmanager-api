@@ -8,6 +8,7 @@ from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.expense import Expense
 from app.models.user_setting import UserSetting
+from app.models.fair_item import FairItem
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "SaleItem",
     "Expense",
     "UserSetting",
+    "FairItem",
 ]

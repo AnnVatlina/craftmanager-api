@@ -29,6 +29,7 @@ from app.models import (
     SaleItem,
     Expense,
     UserSetting,
+    FairItem,
 )
 
 target_metadata = Base.metadata
