@@ -15,6 +15,9 @@ import app.models
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS photo TEXT"
+        ))
         # Migrate existing sales table: add channel_id if only buyer_id exists
         await conn.execute(text("""
             DO $$ BEGIN

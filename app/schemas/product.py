@@ -54,4 +54,5 @@ class ProductOut(BaseModel):
 
 
 class ProductDetailOut(ProductOut):
+    photo: Optional[str] = None
     materials: Optional[List[ProductMaterialItemOut]] = []

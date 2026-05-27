@@ -1,6 +1,9 @@
 import math
+import io
+import base64
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -170,6 +173,7 @@ async def get_product(
             **product.__dict__,
             cost_price=cost_price,
         ).model_dump(),
+        photo=product.photo,
         materials=enriched_materials,
     )
 
@@ -335,4 +339,41 @@ async def remove_product_material(
         )
 
     await db.delete(pm)
+    await db.commit()
+
+
+@router.post("/{product_id}/photo", response_model=dict)
+async def upload_photo(
+    product_id,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await _get_product(product_id, user, db)
+
+    contents = await file.read()
+    img = Image.open(io.BytesIO(contents))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img.thumbnail((800, 800), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=80, optimize=True)
+    product.photo = base64.b64encode(buf.getvalue()).decode()
+
+    await db.commit()
+    await db.refresh(product)
+
+    cost_price = await calc_product_cost_price(db, product)
+    return {"data": _enrich_product(product, cost_price)}
+
+
+@router.delete("/{product_id}/photo", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_photo(
+    product_id,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    product = await _get_product(product_id, user, db)
+    product.photo = None
     await db.commit()

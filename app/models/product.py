@@ -17,6 +17,7 @@ class Product(Base):
     category = Column(String)  # мягкие / деревянные / вязаные / прочее
     sale_price = Column(Numeric(10, 2), nullable=False)
     stock_qty = Column(Integer, default=0, nullable=False)
+    photo = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
