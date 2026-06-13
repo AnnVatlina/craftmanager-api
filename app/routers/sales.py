@@ -80,7 +80,11 @@ async def create_sale(
         )
         db.add(sale_item)
         if item_data.product_id:
-            product_result = await db.execute(select(Product).where(Product.id == item_data.product_id))
+            product_result = await db.execute(
+                select(Product).where(
+                    (Product.id == item_data.product_id) & (Product.user_id == user.id)
+                )
+            )
             product = product_result.scalars().first()
             if product:
                 product.stock_qty -= item_data.quantity
@@ -156,7 +160,11 @@ async def delete_sale(
     items_result = await db.execute(select(SaleItem).where(SaleItem.sale_id == sale.id))
     for item in items_result.scalars().all():
         if item.product_id:
-            product_result = await db.execute(select(Product).where(Product.id == item.product_id))
+            product_result = await db.execute(
+                select(Product).where(
+                    (Product.id == item.product_id) & (Product.user_id == user.id)
+                )
+            )
             product = product_result.scalars().first()
             if product:
                 product.stock_qty += item.quantity

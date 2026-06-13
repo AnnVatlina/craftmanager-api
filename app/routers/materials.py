@@ -140,9 +140,16 @@ async def restock_material(
     material = await _get_material(material_id, user, db)
 
     price = restock.price_per_unit or material.price_per_unit
-    material.stock_qty += restock.qty
+
     if restock.price_per_unit:
-        material.price_per_unit = restock.price_per_unit
+        if material.stock_qty > 0:
+            old_total = material.stock_qty * material.price_per_unit
+            new_total = restock.qty * restock.price_per_unit
+            new_price = (old_total + new_total) / (material.stock_qty + restock.qty)
+            material.price_per_unit = new_price.quantize(Decimal("0.0001"))
+        else:
+            material.price_per_unit = restock.price_per_unit
+    material.stock_qty += restock.qty
 
     db.add(MaterialPurchase(
         user_id=user.id,

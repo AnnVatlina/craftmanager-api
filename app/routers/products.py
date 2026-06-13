@@ -191,8 +191,24 @@ async def update_product(
     product = await _get_product(product_id, user, db)
 
     update_data = product_update.model_dump(exclude_unset=True)
+    old_stock = product.stock_qty
     for key, value in update_data.items():
         setattr(product, key, value)
+
+    if "stock_qty" in update_data and product.stock_qty > old_stock:
+        qty_made = product.stock_qty - old_stock
+        pm_result = await db.execute(
+            select(ProductMaterial).where(ProductMaterial.product_id == product.id)
+        )
+        for pm in pm_result.scalars().all():
+            mat_result = await db.execute(
+                select(Material).where(
+                    (Material.id == pm.material_id) & (Material.user_id == user.id)
+                )
+            )
+            mat = mat_result.scalars().first()
+            if mat:
+                mat.stock_qty -= pm.quantity * qty_made
 
     await db.commit()
     await db.refresh(product)
