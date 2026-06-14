@@ -33,6 +33,36 @@ async def lifespan(app: FastAPI):
                 END IF;
             END $$;
         """))
+        # One-time migration: price_per_unit was stored as total batch cost, not per-unit.
+        # Fix material_purchases and materials using the tracking column price_unit_fixed.
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='materials' AND column_name='price_unit_fixed'
+                ) THEN
+                    ALTER TABLE materials ADD COLUMN price_unit_fixed BOOLEAN DEFAULT FALSE;
+
+                    UPDATE material_purchases mp
+                    SET total_cost = mp.price_per_unit,
+                        price_per_unit = mp.price_per_unit / NULLIF(mp.quantity, 0)
+                    WHERE mp.quantity > 0;
+
+                    UPDATE materials m
+                    SET price_per_unit = (
+                        SELECT mp.price_per_unit
+                        FROM material_purchases mp
+                        WHERE mp.material_id = m.id
+                        ORDER BY mp.created_at ASC
+                        LIMIT 1
+                    ),
+                    price_unit_fixed = TRUE
+                    WHERE EXISTS (
+                        SELECT 1 FROM material_purchases mp WHERE mp.material_id = m.id
+                    );
+                END IF;
+            END $$;
+        """))
 
     yield
 
