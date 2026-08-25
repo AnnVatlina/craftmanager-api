@@ -1,245 +1,93 @@
 # CraftManager API
 
-REST API для управления производством и продажей изделий ручной работы.
+REST API для учёта handmade-производства: изделия и их себестоимость, склад материалов, продажи по каналам (в т.ч. ярмарки), расходы, финансовый дашборд.
 
-## Описание
+Бэкенд для [craftmanager-ui](https://github.com/AnnVatlina/craftmanager-ui). Вся бизнес-логика и данные живут здесь — фронтенд тонкий.
 
-Полнофункциональное API приложение для ремесленника, включающее:
-- Управление товарами с автоматическим расчётом себестоимости
-- Управление материалами и складом
-- Учёт продаж и покупателей
-- Отслеживание расходов
-- Финансовая аналитика и дашборд
+## Документация
+
+Подробная документация — в [`docs/`](docs/):
+
+- [`docs/BUSINESS.md`](docs/BUSINESS.md) — реализованные бизнес-правила и сценарии, включая то, что осознанно не сделано
+- [`docs/DOMAIN.md`](docs/DOMAIN.md) — модель данных: таблицы, поля, связи
+- [`docs/API.md`](docs/API.md) — контракт эндпоинтов (точные схемы — на `/docs` запущенного сервера)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — стек, структура, деплой, известные несоответствия
 
 ## Стек технологий
 
-- **Backend:** FastAPI (Python 3.11)
-- **Database:** PostgreSQL 16 + SQLAlchemy 2.0
+- **Backend:** FastAPI (Python 3.11), SQLAlchemy 2.0 (async)
+- **Database:** PostgreSQL 16
 - **Auth:** JWT (python-jose)
-- **Migrations:** Alembic
 - **Testing:** pytest-asyncio
-- **Deployment:** Docker, Railway
+- **Deployment:** Docker, Railway (backend) + GitHub Pages (frontend)
 
-## Требования
+## Локальная разработка
 
-- Python 3.11+
-- PostgreSQL 16+
-- Docker (опционально)
-
-## Установка
-
-### Локальная разработка
-
-1. Клонируйте репозиторий и перейдите в папку backend:
 ```bash
-cd backend
-```
+git clone https://github.com/AnnVatlina/craftmanager-api.git
+cd craftmanager-api
 
-2. Создайте виртуальное окружение:
-```bash
 python -m venv venv
-source venv/bin/activate  # На Windows: venv\Scripts\activate
-```
-
-3. Установите зависимости:
-```bash
+source venv/bin/activate       # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-4. Скопируйте .env.example в .env и обновите переменные:
-```bash
 cp .env.example .env
+docker-compose up -d            # Postgres на 5432, тестовый на 5433
+
+uvicorn app.main:app --reload   # схема БД создаётся автоматически при старте
 ```
 
-5. Запустите PostgreSQL с Docker Compose:
-```bash
-docker-compose up -d
-```
+API — `http://localhost:8000`, Swagger UI — `http://localhost:8000/docs`.
 
-6. Примените миграции:
-```bash
-alembic upgrade head
-```
-
-7. Запустите сервер:
-```bash
-uvicorn app.main:app --reload
-```
-
-API будет доступен по адресу `http://localhost:8000`  
-Swagger UI: `http://localhost:8000/docs`
+> Схема БД создаётся через `Base.metadata.create_all` при старте приложения, а не через `alembic upgrade head` — Alembic сконфигурирован, но версий миграций в репозитории нет. Подробности — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#инициализация-схемы).
 
 ## Структура проекта
 
 ```
-backend/
+craftmanager-api/
 ├── app/
 │   ├── models/          # SQLAlchemy ORM модели
 │   ├── schemas/         # Pydantic схемы для валидации
 │   ├── routers/         # API маршруты
-│   ├── services/        # Бизнес-логика
+│   ├── services/        # Бизнес-логика (себестоимость, суммы продаж)
 │   ├── auth/            # JWT и аутентификация
-│   ├── main.py          # FastAPI приложение
+│   ├── main.py          # FastAPI приложение, lifespan
 │   ├── config.py        # Конфигурация
 │   └── database.py      # Подключение БД
-├── alembic/             # Миграции БД
-├── tests/               # Тесты
+├── alembic/              # Настроен, миграций пока нет
+├── tests/                # pytest
+├── docs/                 # Документация (см. выше)
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
-└── README.md
+└── requirements.txt
 ```
-
-## API Endpoints
-
-### Аутентификация
-- `POST /api/v1/auth/register` — Регистрация
-- `POST /api/v1/auth/login` — Вход
-- `POST /api/v1/auth/refresh` — Обновление токена
-
-### Товары
-- `GET /api/v1/products` — Список товаров
-- `POST /api/v1/products` — Создать товар
-- `GET /api/v1/products/{id}` — Товар с составом
-- `PUT /api/v1/products/{id}` — Обновить товар
-- `DELETE /api/v1/products/{id}` — Удалить товар
-- `GET /api/v1/products/{id}/materials` — Состав товара
-- `POST /api/v1/products/{id}/materials` — Добавить материал
-- `DELETE /api/v1/products/{id}/materials/{material_id}` — Удалить материал
-
-### Материалы
-- `GET /api/v1/materials` — Список материалов
-- `POST /api/v1/materials` — Создать материал
-- `GET /api/v1/materials/{id}` — Детали материала
-- `PUT /api/v1/materials/{id}` — Обновить материал
-- `DELETE /api/v1/materials/{id}` — Удалить материал
-- `POST /api/v1/materials/{id}/restock` — Пополнить склад
-
-### Покупатели
-- `GET /api/v1/buyers` — Список покупателей
-- `POST /api/v1/buyers` — Создать покупателя
-- `GET /api/v1/buyers/{id}` — Детали покупателя
-- `PUT /api/v1/buyers/{id}` — Обновить покупателя
-- `DELETE /api/v1/buyers/{id}` — Удалить покупателя
-
-### Продажи
-- `GET /api/v1/sales` — Список продаж
-- `POST /api/v1/sales` — Создать продажу
-- `GET /api/v1/sales/{id}` — Детали продажи
-- `PUT /api/v1/sales/{id}` — Обновить продажу
-- `DELETE /api/v1/sales/{id}` — Удалить продажу
-
-### Расходы
-- `GET /api/v1/expenses` — Список расходов
-- `POST /api/v1/expenses` — Создать расход
-- `GET /api/v1/expenses/{id}` — Детали расхода
-- `PUT /api/v1/expenses/{id}` — Обновить расход
-- `DELETE /api/v1/expenses/{id}` — Удалить расход
-
-### Дашборд
-- `GET /api/v1/dashboard/summary` — Финансовая сводка
-- `GET /api/v1/dashboard/top-products` — Топ товаров
-- `GET /api/v1/dashboard/low-stock` — Товары с низким остатком
 
 ## Тестирование
 
-Запустите тесты:
 ```bash
-pytest tests/ -v
+pytest -v
 ```
 
-Покрытие включает:
-- Аутентификацию и авторизацию
-- CRUD операции
-- Изоляцию пользователей
-- Расчётные поля
-- Списание и восстановление остатков
+Покрывает: регистрацию/вход, изоляцию пользователей, CRUD по всем сущностям, расчётные поля (себестоимость, суммы), списание/восстановление остатков при продаже, подготовку к ярмарке.
 
 ## Развёртывание
 
-### Railway
+### Railway (backend)
 
-1. Создайте проект на [Railway](https://railway.app)
-2. Подключите GitHub репозиторий
-3. Установите переменные окружения:
-   - `DATABASE_URL` — строка подключения к PostgreSQL
-   - `SECRET_KEY` — случайная строка (используйте `openssl rand -hex 32`)
-   - `CORS_ORIGINS` — URL фронтенда
-4. Deployment произойдёт автоматически при push в `main`
+1. Создайте проект на [Railway](https://railway.app), подключите репозиторий и Postgres-плагин.
+2. Переменные окружения: `DATABASE_URL` (Railway подставит сам при подключении БД), `SECRET_KEY` (`openssl rand -hex 32`), `CORS_ORIGINS` — URL фронтенда.
+3. Деплой — автоматически при push в `main` (`railway.toml`).
 
-### Docker Compose (Production)
-
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-## Переменные окружения
+### Переменные окружения
 
 | Переменная | Описание | По умолчанию |
-|-----------|---------|-------------|
-| `DATABASE_URL` | PostgreSQL строка подключения | postgresql+asyncpg://craft_user:craft_pass@localhost:5432/craftmanager |
-| `SECRET_KEY` | Секретный ключ для JWT | test-secret-key |
-| `ALGORITHM` | Алгоритм JWT | HS256 |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Время жизни access токена | 30 |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Время жизни refresh токена | 30 |
-| `CORS_ORIGINS` | Разрешённые origins (через запятую) | http://localhost:5173 |
-
-## Примеры использования
-
-### Регистрация и вход
-
-```bash
-# Регистрация
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "craftmaster@example.com",
-    "password": "secure_password"
-  }'
-
-# Вход
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "craftmaster@example.com",
-    "password": "secure_password"
-  }'
-```
-
-### Создание товара с материалами
-
-```bash
-# Создать материал
-curl -X POST http://localhost:8000/api/v1/materials \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Cotton",
-    "unit": "g",
-    "price_per_unit": "10.50",
-    "stock_qty": "5000"
-  }'
-
-# Создать товар
-curl -X POST http://localhost:8000/api/v1/products \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Plush Bunny",
-    "category": "soft",
-    "sale_price": "45.00",
-    "stock_qty": 20
-  }'
-
-# Добавить материал в товар
-curl -X POST http://localhost:8000/api/v1/products/PRODUCT_ID/materials \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "material_id": "MATERIAL_ID",
-    "quantity": "100.5"
-  }'
-```
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL, `postgres://`/`postgresql://` нормализуются в `postgresql+asyncpg://` | `postgresql+asyncpg://craft_user:craft_pass@localhost:5432/craftmanager` |
+| `SECRET_KEY` | Секрет для подписи JWT | `test-secret-key` — обязательно сменить в проде |
+| `ALGORITHM` | Алгоритм JWT | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Время жизни access-токена | `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Время жизни refresh-токена | `30` |
+| `CORS_ORIGINS` | Разрешённые origins через запятую | `http://localhost:5173` |
 
 ## Лицензия
 
