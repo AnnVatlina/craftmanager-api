@@ -16,7 +16,7 @@
 
 | Метод | Путь | Query/Body | Описание |
 |---|---|---|---|
-| GET | `/products` | `category?, in_stock?, page=1, per_page=20` | Пагинированный список + `cost_price` на каждой записи. `meta`: `total, page, per_page, pages, total_stock_value`. |
+| GET | `/products` | `category?, in_stock?, search?, page=1, per_page=20` | Пагинированный список + `cost_price` на каждой записи. `search` — регистронезависимая подстрока по названию. `meta`: `total, page, per_page, pages, total_stock_value`. |
 | POST | `/products` | `{name, description?, category?, sale_price, stock_qty?}` | Создание. См. [BUSINESS.md](BUSINESS.md#2-изделия-products) — начальный `stock_qty` не списывает материалы. |
 | GET | `/products/{id}` | — | Изделие + состав материалов + `cost_price`. |
 | PUT | `/products/{id}` | любое подмножество полей create | Увеличение `stock_qty` списывает материалы состава пропорционально разнице. |
@@ -94,8 +94,6 @@
 | PUT | `/settings` | `{currency?, categories?, expense_categories?, material_units?, low_stock_threshold?}` | Частичное обновление, списки передаются как JSON-массив строк. |
 
 ## Export / Import — `/export`, `/import`
-
-⚠️ Реализовано, подключено в `main.py`, но **не закоммичено** на момент написания (см. `git status`).
 
 | Метод | Путь | Body | Описание |
 |---|---|---|---|
