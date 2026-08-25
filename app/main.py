@@ -8,6 +8,8 @@ from app.routers import auth, products, materials, sales, expenses, dashboard
 from app.routers import channels
 from app.routers import settings as settings_router
 from app.routers import fair_prep
+from app.routers import export
+from app.routers import import_data
 import app.models
 
 
@@ -91,6 +93,8 @@ app.include_router(expenses.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(fair_prep.router, prefix="/api/v1")
+app.include_router(export.router, prefix="/api/v1")
+app.include_router(import_data.router, prefix="/api/v1")
 
 
 @app.get("/health")
