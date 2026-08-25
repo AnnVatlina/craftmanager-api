@@ -165,3 +165,51 @@ async def test_product_not_found_for_other_user(client: AsyncClient, second_auth
         headers=second_auth_headers,
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_search_products_by_name_substring(client: AsyncClient, auth_headers, product):
+    """Test that ?search matches a case-insensitive substring of the name"""
+    await client.post(
+        "/api/v1/products",
+        headers=auth_headers,
+        json={"name": "Plush Bunny", "sale_price": "45.00"},
+    )
+
+    response = await client.get(
+        "/api/v1/products",
+        headers=auth_headers,
+        params={"search": "bunny"},
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    names = [p["name"] for p in data]
+    assert "Plush Bunny" in names
+    assert product.name not in names  # "Test Toy" fixture doesn't contain "bunny"
+
+
+@pytest.mark.asyncio
+async def test_search_products_no_match(client: AsyncClient, auth_headers, product):
+    """Test that ?search with no matches returns an empty list, not an error"""
+    response = await client.get(
+        "/api/v1/products",
+        headers=auth_headers,
+        params={"search": "nonexistent-xyz"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["data"] == []
+    assert data["meta"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_search_products_isolated_by_user(client: AsyncClient, second_auth_headers, product):
+    """Test that ?search never returns another user's products"""
+    response = await client.get(
+        "/api/v1/products",
+        headers=second_auth_headers,
+        params={"search": "Test"},  # substring of the other user's "Test Toy"
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert product.name not in [p["name"] for p in data]

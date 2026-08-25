@@ -60,6 +60,7 @@ async def _get_product(
 async def list_products(
     category: Optional[str] = None,
     in_stock: Optional[bool] = None,
+    search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20,
     user: User = Depends(get_current_user),
@@ -71,6 +72,8 @@ async def list_products(
             q = q.where(Product.category == category)
         if in_stock is not None:
             q = q.where(Product.stock_qty > 0) if in_stock else q.where(Product.stock_qty == 0)
+        if search:
+            q = q.where(Product.name.ilike(f"%{search}%"))
         return q
 
     agg_query = _apply_filters(
