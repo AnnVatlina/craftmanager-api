@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
             INSERT INTO product_productions
                 (id, user_id, product_id, quantity, produced_at, source, created_at)
             SELECT
-                md5(p.id::text || ':backfill')::uuid,
+                md5(p.id::text || '-backfill')::uuid,
                 p.user_id,
                 p.id,
                 GREATEST(p.stock_qty + COALESCE(SUM(si.quantity), 0), 0),
