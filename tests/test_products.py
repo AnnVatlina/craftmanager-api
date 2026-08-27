@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 from decimal import Decimal
+from sqlalchemy.future import select
+from app.models.product_production import ProductProduction
 
 
 @pytest.mark.asyncio
@@ -21,6 +23,48 @@ async def test_create_product(client: AsyncClient, auth_headers):
     data = response.json()
     assert data["data"]["name"] == "Soft Toy"
     assert data["data"]["sale_price"] == "50.00"
+
+
+@pytest.mark.asyncio
+async def test_create_product_records_initial_production(client: AsyncClient, auth_headers, db_session):
+    response = await client.post(
+        "/api/v1/products",
+        headers=auth_headers,
+        json={
+            "name": "Initial Stock Toy",
+            "sale_price": "25.00",
+            "stock_qty": 4,
+            "produced_at": "2026-08-01",
+        },
+    )
+    assert response.status_code == 201
+    product_id = response.json()["data"]["id"]
+
+    result = await db_session.execute(
+        select(ProductProduction).where(ProductProduction.product_id == product_id)
+    )
+    production = result.scalar_one()
+    assert production.quantity == 4
+    assert production.produced_at.isoformat() == "2026-08-01"
+    assert production.source == "production"
+
+
+@pytest.mark.asyncio
+async def test_restock_product_records_production(client: AsyncClient, auth_headers, product, db_session):
+    response = await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 3, "produced_at": "2026-08-15"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["stock_qty"] == 13
+
+    result = await db_session.execute(
+        select(ProductProduction).where(ProductProduction.product_id == product.id)
+    )
+    production = result.scalar_one()
+    assert production.quantity == 3
+    assert production.produced_at.isoformat() == "2026-08-15"
 
 
 @pytest.mark.asyncio

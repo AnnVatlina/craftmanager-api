@@ -10,6 +10,7 @@ from app.models.expense import Expense
 from app.models.user_setting import UserSetting
 from app.models.fair_item import FairItem
 from app.models.material_purchase import MaterialPurchase
+from app.models.product_production import ProductProduction
 
 __all__ = [
     "User",
@@ -23,4 +24,5 @@ __all__ = [
     "UserSetting",
     "FairItem",
     "MaterialPurchase",
+    "ProductProduction",
 ]

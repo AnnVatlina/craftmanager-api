@@ -17,9 +17,10 @@
 | Метод | Путь | Query/Body | Описание |
 |---|---|---|---|
 | GET | `/products` | `category?, in_stock?, search?, page=1, per_page=20` | Пагинированный список + `cost_price` на каждой записи. `search` — регистронезависимая подстрока по названию. `meta`: `total, page, per_page, pages, total_stock_value`. |
-| POST | `/products` | `{name, description?, category?, sale_price, stock_qty?}` | Создание. См. [BUSINESS.md](BUSINESS.md#2-изделия-products) — начальный `stock_qty` не списывает материалы. |
+| POST | `/products` | `{name, description?, category?, sale_price, stock_qty?, produced_at?}` | Создание. При `stock_qty > 0` создаёт партию производства; дата по умолчанию — сегодня. Начальный остаток не списывает материалы. |
 | GET | `/products/{id}` | — | Изделие + состав материалов + `cost_price`. |
-| PUT | `/products/{id}` | любое подмножество полей create | Увеличение `stock_qty` списывает материалы состава пропорционально разнице. |
+| PUT | `/products/{id}` | любое подмножество полей create | Увеличение `stock_qty` создаёт партию на разницу и списывает материалы состава; дату можно передать через `produced_at`. |
+| POST | `/products/{id}/restock` | `{qty, produced_at?}` | Увеличивает остаток и создаёт партию производства; дата по умолчанию — сегодня. |
 | DELETE | `/products/{id}` | — | Каскадно удаляет `product_materials`; позиции продаж (`sale_items`) остаются, теряя ссылку. |
 | GET | `/products/{id}/materials` | — | Состав изделия. |
 | POST | `/products/{id}/materials` | `{material_id, quantity}` | 400, если материал уже в составе. |
@@ -37,6 +38,8 @@
 | PUT | `/materials/{id}` | любое подмножество полей create | Прямое редактирование, не создаёт запись закупки. |
 | DELETE | `/materials/{id}` | — | Каскадно удаляет `product_materials` и `material_purchases` этого материала. |
 | POST | `/materials/{id}/restock` | `{qty, price_per_unit?, purchased_at?}` | Пополнение; средневзвешенная цена, если `price_per_unit` указан. |
+
+Журнал партий производства экспортируется в `product_productions.csv` и импортируется обратно с сохранением `id`.
 
 ## Sales Channels — `/channels`
 

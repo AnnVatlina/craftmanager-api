@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from datetime import datetime, date
+from pydantic import Field
 from decimal import Decimal
 from uuid import UUID
 
@@ -29,6 +31,7 @@ class ProductCreate(BaseModel):
     category: Optional[str] = None
     sale_price: Decimal
     stock_qty: Optional[int] = 0
+    produced_at: Optional[date] = None
 
 
 class ProductUpdate(BaseModel):
@@ -37,6 +40,12 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     sale_price: Optional[Decimal] = None
     stock_qty: Optional[int] = None
+    produced_at: Optional[date] = None
+
+
+class ProductRestockRequest(BaseModel):
+    qty: int = Field(gt=0)
+    produced_at: Optional[date] = None
 
 
 class ProductOut(BaseModel):

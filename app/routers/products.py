@@ -1,6 +1,7 @@
 import math
 import io
 import base64
+from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from PIL import Image
@@ -10,6 +11,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app.models.user import User
 from app.models.product import Product
+from app.models.product_production import ProductProduction
 from app.models.product_material import ProductMaterial
 from app.models.material import Material
 from app.schemas.product import (
@@ -19,6 +21,7 @@ from app.schemas.product import (
     ProductDetailOut,
     ProductMaterialItemCreate,
     ProductMaterialItemOut,
+    ProductRestockRequest,
 )
 from app.auth.dependencies import get_current_user
 from app.services.product import calc_product_cost_price
@@ -54,6 +57,40 @@ async def _get_product(
             detail="Product not found",
         )
     return product
+
+
+async def _consume_materials_for_production(
+    product: Product, quantity: int, user: User, db: AsyncSession
+):
+    pm_result = await db.execute(
+        select(ProductMaterial).where(ProductMaterial.product_id == product.id)
+    )
+    for pm in pm_result.scalars().all():
+        mat_result = await db.execute(
+            select(Material).where(
+                (Material.id == pm.material_id) & (Material.user_id == user.id)
+            )
+        )
+        mat = mat_result.scalars().first()
+        if mat:
+            mat.stock_qty -= pm.quantity * quantity
+
+
+def _add_production_record(
+    product: Product,
+    user: User,
+    db: AsyncSession,
+    quantity: int,
+    produced_at: date,
+    source: str = "production",
+):
+    db.add(ProductProduction(
+        user_id=user.id,
+        product_id=product.id,
+        quantity=quantity,
+        produced_at=produced_at,
+        source=source,
+    ))
 
 
 @router.get("", response_model=dict)
@@ -130,6 +167,17 @@ async def create_product(
     await db.commit()
     await db.refresh(new_product)
 
+    if new_product.stock_qty > 0:
+        _add_production_record(
+            new_product,
+            user,
+            db,
+            new_product.stock_qty,
+            product_create.produced_at or date.today(),
+        )
+        await db.commit()
+        await db.refresh(new_product)
+
     cost_price = await calc_product_cost_price(db, new_product)
     return {"data": _enrich_product(new_product, cost_price)}
 
@@ -194,25 +242,39 @@ async def update_product(
     product = await _get_product(product_id, user, db)
 
     update_data = product_update.model_dump(exclude_unset=True)
+    produced_at = update_data.pop("produced_at", None)
     old_stock = product.stock_qty
     for key, value in update_data.items():
         setattr(product, key, value)
 
     if "stock_qty" in update_data and product.stock_qty > old_stock:
         qty_made = product.stock_qty - old_stock
-        pm_result = await db.execute(
-            select(ProductMaterial).where(ProductMaterial.product_id == product.id)
+        await _consume_materials_for_production(product, qty_made, user, db)
+        _add_production_record(
+            product, user, db, qty_made, produced_at or date.today()
         )
-        for pm in pm_result.scalars().all():
-            mat_result = await db.execute(
-                select(Material).where(
-                    (Material.id == pm.material_id) & (Material.user_id == user.id)
-                )
-            )
-            mat = mat_result.scalars().first()
-            if mat:
-                mat.stock_qty -= pm.quantity * qty_made
 
+    await db.commit()
+    await db.refresh(product)
+
+    cost_price = await calc_product_cost_price(db, product)
+    return {"data": _enrich_product(product, cost_price)}
+
+
+@router.post("/{product_id}/restock", response_model=dict)
+async def restock_product(
+    product_id,
+    restock: ProductRestockRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add produced items to stock and record the production batch."""
+    product = await _get_product(product_id, user, db)
+    product.stock_qty += restock.qty
+    await _consume_materials_for_production(product, restock.qty, user, db)
+    _add_production_record(
+        product, user, db, restock.qty, restock.produced_at or date.today()
+    )
     await db.commit()
     await db.refresh(product)
 

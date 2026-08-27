@@ -20,6 +20,26 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS photo TEXT"
         ))
+        await conn.execute(text("""
+            INSERT INTO product_productions
+                (id, user_id, product_id, quantity, produced_at, source, created_at)
+            SELECT
+                md5(p.id::text || ':backfill')::uuid,
+                p.user_id,
+                p.id,
+                GREATEST(p.stock_qty + COALESCE(SUM(si.quantity), 0), 0),
+                p.created_at::date,
+                'backfill',
+                p.created_at
+            FROM products p
+            LEFT JOIN sale_items si ON si.product_id = p.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM product_productions pp
+                WHERE pp.product_id = p.id AND pp.source = 'backfill'
+            )
+            GROUP BY p.id, p.user_id, p.stock_qty, p.created_at
+            HAVING p.stock_qty + COALESCE(SUM(si.quantity), 0) > 0
+        """))
         # Migrate existing sales table: add channel_id if only buyer_id exists
         await conn.execute(text("""
             DO $$ BEGIN

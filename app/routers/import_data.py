@@ -17,6 +17,7 @@ from app.models.fair_item import FairItem
 from app.models.material import Material
 from app.models.material_purchase import MaterialPurchase
 from app.models.product import Product
+from app.models.product_production import ProductProduction
 from app.models.product_material import ProductMaterial
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
@@ -232,7 +233,23 @@ async def import_all_csv(
         await db.execute(insert(MaterialPurchase).values(values).on_conflict_do_nothing())
     counts["material_purchases"] = len(values)
 
-    # 10. fair_items — зависит от sales_channels, products
+    # 10. product_productions — зависит от products
+    rows = _read_csv(zf, "product_productions.csv")
+    values = [
+        {"id": _uuid(r["id"]), "user_id": uid,
+         "product_id": _uuid(r.get("product_id")),
+         "quantity": _int(r.get("quantity")) or 0,
+         "produced_at": _date(r.get("produced_at")) or date.today(),
+         "source": r.get("source") or "production",
+         "created_at": _dt(r.get("created_at")) or datetime.utcnow()}
+        for r in rows
+        if _uuid(r.get("id")) and _uuid(r.get("product_id")) and (_int(r.get("quantity")) or 0) > 0
+    ]
+    if values:
+        await db.execute(insert(ProductProduction).values(values).on_conflict_do_nothing())
+    counts["product_productions"] = len(values)
+
+    # 11. fair_items — зависит от sales_channels, products
     rows = _read_csv(zf, "fair_items.csv")
     values = [
         {"id": _uuid(r["id"]), "user_id": uid,
@@ -246,7 +263,7 @@ async def import_all_csv(
         await db.execute(insert(FairItem).values(values).on_conflict_do_nothing())
     counts["fair_items"] = len(values)
 
-    # 11. user_settings — upsert по user_id (настройки всегда перезаписываются)
+    # 12. user_settings — upsert по user_id (настройки всегда перезаписываются)
     rows = _read_csv(zf, "user_settings.csv")
     if rows:
         r = rows[0]

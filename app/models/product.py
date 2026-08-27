@@ -23,6 +23,7 @@ class Product(Base):
     # Relationships
     materials = relationship("ProductMaterial", back_populates="product", cascade="all, delete-orphan")
     sale_items = relationship("SaleItem", back_populates="product")
+    productions = relationship("ProductProduction", back_populates="product", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_products_user_id", "user_id"),

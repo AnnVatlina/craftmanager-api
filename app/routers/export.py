@@ -14,6 +14,7 @@ from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.sales_channel import SalesChannel
 from app.models.material_purchase import MaterialPurchase
+from app.models.product_production import ProductProduction
 from app.models.expense import Expense
 from app.models.buyer import Buyer
 from app.models.fair_item import FairItem
@@ -58,6 +59,7 @@ async def export_all_csv(
     sales = await fetch(Sale)
     sale_items = await fetch(SaleItem)
     material_purchases = await fetch(MaterialPurchase)
+    product_productions = await fetch(ProductProduction)
     expenses = await fetch(Expense)
     buyers = await fetch(Buyer)
     fair_items = await fetch(FairItem)
@@ -108,6 +110,13 @@ async def export_all_csv(
               "total_cost": r.total_cost, "created_at": r.created_at}
              for r in material_purchases],
         ),
+           "product_productions.csv": (
+              ["id", "product_id", "quantity", "produced_at", "source", "created_at"],
+              [{"id": r.id, "product_id": r.product_id, "quantity": r.quantity,
+                "produced_at": r.produced_at, "source": r.source,
+                "created_at": r.created_at}
+               for r in product_productions],
+           ),
         "expenses.csv": (
             ["id", "category", "amount", "description", "expense_date", "created_at"],
             [{"id": r.id, "category": r.category, "amount": r.amount,
