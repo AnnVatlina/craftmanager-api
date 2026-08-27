@@ -70,6 +70,29 @@ async def test_restock_product_records_production(client: AsyncClient, auth_head
 
 
 @pytest.mark.asyncio
+async def test_list_product_productions(client: AsyncClient, auth_headers, product):
+    await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 2, "produced_at": "2026-08-01"},
+    )
+    await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 4, "produced_at": "2026-08-20"},
+    )
+
+    response = await client.get(
+        f"/api/v1/products/{product.id}/productions", headers=auth_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["meta"]["total"] == 2
+    assert [item["quantity"] for item in data["data"]] == [4, 2]
+    assert [item["produced_at"] for item in data["data"]] == ["2026-08-20", "2026-08-01"]
+
+
+@pytest.mark.asyncio
 async def test_list_products(client: AsyncClient, auth_headers, product):
     """Test listing products"""
     response = await client.get(

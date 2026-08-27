@@ -139,6 +139,7 @@ async def list_products(
         cost_price = await calc_product_cost_price(db, product)
         enriched.append(_enrich_product(product, cost_price))
 
+    productions = result.scalars().all()
     return {
         "data": enriched,
         "meta": {
@@ -284,6 +285,38 @@ async def restock_product(
 
     cost_price = await calc_product_cost_price(db, product)
     return {"data": _enrich_product(product, cost_price)}
+
+
+@router.get("/{product_id}/productions", response_model=dict)
+async def list_product_productions(
+    product_id,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List production batches for a product."""
+    product = await _get_product(product_id, user, db)
+    result = await db.execute(
+        select(ProductProduction)
+        .where(
+            (ProductProduction.product_id == product.id)
+            & (ProductProduction.user_id == user.id)
+        )
+        .order_by(ProductProduction.produced_at.desc(), ProductProduction.created_at.desc())
+    )
+    productions = result.scalars().all()
+    return {
+        "data": [
+            {
+                "id": production.id,
+                "quantity": production.quantity,
+                "produced_at": production.produced_at,
+                "source": production.source,
+                "created_at": production.created_at,
+            }
+            for production in productions
+        ],
+        "meta": {"total": len(productions)},
+    }
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
