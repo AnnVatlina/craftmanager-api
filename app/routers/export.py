@@ -66,10 +66,11 @@ async def export_all_csv(
 
     files: dict[str, tuple[list[str], list[dict]]] = {
         "products.csv": (
-            ["id", "name", "description", "category", "sale_price", "stock_qty", "created_at"],
+                        ["id", "name", "description", "category", "sale_price", "stock_qty", "is_archived", "created_at"],
             [{"id": r.id, "name": r.name, "description": r.description,
               "category": r.category, "sale_price": r.sale_price,
-              "stock_qty": r.stock_qty, "created_at": r.created_at}
+                            "stock_qty": r.stock_qty, "is_archived": r.is_archived,
+                            "created_at": r.created_at}
              for r in products],
         ),
         "materials.csv": (

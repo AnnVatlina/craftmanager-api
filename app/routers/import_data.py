@@ -153,6 +153,7 @@ async def import_all_csv(
          "category": _opt(r.get("category")),
          "sale_price": _dec(r.get("sale_price")) or Decimal("0"),
          "stock_qty": _int(r.get("stock_qty")) or 0,
+         "is_archived": r.get("is_archived", "").lower() in ("true", "1", "yes"),
          "created_at": _dt(r.get("created_at")) or datetime.utcnow()}
         for r in rows if _uuid(r.get("id")) and r.get("name")
     ]

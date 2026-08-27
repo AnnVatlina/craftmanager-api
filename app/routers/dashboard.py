@@ -136,7 +136,9 @@ async def get_low_stock(
 ):
     """Get products with low stock"""
     query = select(Product).where(
-        (Product.user_id == user.id) & (Product.stock_qty <= threshold)
+        (Product.user_id == user.id)
+        & (Product.stock_qty <= threshold)
+        & Product.is_archived.is_(False)
     ).order_by(Product.stock_qty)
 
     result = await db.execute(query)

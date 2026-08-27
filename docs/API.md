@@ -21,7 +21,7 @@
 | GET | `/products/{id}` | — | Изделие + состав материалов + `cost_price`. |
 | PUT | `/products/{id}` | любое подмножество полей create | Увеличение `stock_qty` создаёт партию на разницу и списывает материалы состава; дату можно передать через `produced_at`. |
 | POST | `/products/{id}/restock` | `{qty, produced_at?}` | Увеличивает остаток и создаёт партию производства; дата по умолчанию — сегодня. |
-| DELETE | `/products/{id}` | — | Каскадно удаляет `product_materials`; позиции продаж (`sale_items`) остаются, теряя ссылку. |
+| DELETE | `/products/{id}` | — | Если продаж нет — удаляет изделие физически. Если продажи есть — архивирует его, сохраняя историю продаж и производства. |
 | GET | `/products/{id}/materials` | — | Состав изделия. |
 | POST | `/products/{id}/materials` | `{material_id, quantity}` | 400, если материал уже в составе. |
 | DELETE | `/products/{id}/materials/{material_id}` | — | Убрать материал из состава. |

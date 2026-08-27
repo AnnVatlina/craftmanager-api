@@ -82,12 +82,15 @@ async def create_sale(
         if item_data.product_id:
             product_result = await db.execute(
                 select(Product).where(
-                    (Product.id == item_data.product_id) & (Product.user_id == user.id)
+                    (Product.id == item_data.product_id)
+                    & (Product.user_id == user.id)
+                    & Product.is_archived.is_(False)
                 )
             )
             product = product_result.scalars().first()
-            if product:
-                product.stock_qty -= item_data.quantity
+            if not product:
+                raise HTTPException(status_code=404, detail="Product not found or archived")
+            product.stock_qty -= item_data.quantity
 
     await db.commit()
     result = await db.execute(

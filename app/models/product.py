@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Column, String, Text, Numeric, Integer, DateTime, ForeignKey, Index
+from sqlalchemy import Boolean, Column, String, Text, Numeric, Integer, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -18,6 +18,7 @@ class Product(Base):
     sale_price = Column(Numeric(10, 2), nullable=False)
     stock_qty = Column(Integer, default=0, nullable=False)
     photo = Column(Text, nullable=True)
+    is_archived = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

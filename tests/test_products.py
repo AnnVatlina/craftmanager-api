@@ -2,7 +2,9 @@ import pytest
 from httpx import AsyncClient
 from decimal import Decimal
 from sqlalchemy.future import select
+from app.models.product import Product
 from app.models.product_production import ProductProduction
+from app.models.sale_item import SaleItem
 
 
 @pytest.mark.asyncio
@@ -117,6 +119,77 @@ async def test_delete_product(client: AsyncClient, auth_headers, product):
         headers=auth_headers,
     )
     assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_delete_product_with_sales_archives_and_preserves_history(
+    client: AsyncClient, auth_headers, product, db_session
+):
+    sale_response = await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2026-08-20",
+            "items": [{"product_id": str(product.id), "quantity": 1, "price": "50.00"}],
+        },
+    )
+    assert sale_response.status_code == 201
+
+    delete_response = await client.delete(
+        f"/api/v1/products/{product.id}", headers=auth_headers
+    )
+    assert delete_response.status_code == 204
+
+    result = await db_session.execute(
+        select(Product).where(Product.id == product.id).execution_options(populate_existing=True)
+    )
+    archived_product = result.scalar_one()
+    assert archived_product.is_archived is True
+
+    item_result = await db_session.execute(
+        select(SaleItem).where(SaleItem.product_id == product.id)
+    )
+    assert item_result.scalar_one().product_id == product.id
+
+    list_response = await client.get("/api/v1/products", headers=auth_headers)
+    assert product.name not in [item["name"] for item in list_response.json()["data"]]
+
+    sale_id = sale_response.json()["data"]["id"]
+    sale_detail = await client.get(f"/api/v1/sales/{sale_id}", headers=auth_headers)
+    assert sale_detail.status_code == 200
+    assert sale_detail.json()["data"]["items"][0]["product_name"] == product.name
+
+
+@pytest.mark.asyncio
+async def test_archived_product_cannot_be_sold_or_restocked(
+    client: AsyncClient, auth_headers, product
+):
+    await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2026-08-20",
+            "items": [{"product_id": str(product.id), "quantity": 1, "price": "50.00"}],
+        },
+    )
+    await client.delete(f"/api/v1/products/{product.id}", headers=auth_headers)
+
+    sale_response = await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2026-08-21",
+            "items": [{"product_id": str(product.id), "quantity": 1, "price": "50.00"}],
+        },
+    )
+    assert sale_response.status_code == 404
+
+    restock_response = await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 1},
+    )
+    assert restock_response.status_code == 404
 
 
 @pytest.mark.asyncio

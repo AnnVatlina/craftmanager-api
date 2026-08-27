@@ -20,6 +20,9 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE products ADD COLUMN IF NOT EXISTS photo TEXT"
         ))
+        await conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
         await conn.execute(text("""
             INSERT INTO product_productions
                 (id, user_id, product_id, quantity, produced_at, source, created_at)

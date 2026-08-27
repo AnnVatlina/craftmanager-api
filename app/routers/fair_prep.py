@@ -69,7 +69,11 @@ async def _load_items(
         select(FairItem)
         .join(Product, FairItem.product_id == Product.id)
         .options(selectinload(FairItem.product))
-        .where((FairItem.channel_id == channel_id) & (FairItem.user_id == user.id))
+        .where(
+            (FairItem.channel_id == channel_id)
+            & (FairItem.user_id == user.id)
+            & Product.is_archived.is_(False)
+        )
     )
     if category:
         query = query.where(Product.category == category)

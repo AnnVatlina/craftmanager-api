@@ -56,6 +56,7 @@ class ProductOut(BaseModel):
     category: Optional[str] = None
     sale_price: Decimal
     stock_qty: int
+    is_archived: bool = False
     cost_price: Optional[Decimal] = None  # Calculated field
     created_at: datetime
 

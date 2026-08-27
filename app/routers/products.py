@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.product import Product
 from app.models.product_production import ProductProduction
 from app.models.product_material import ProductMaterial
+from app.models.sale_item import SaleItem
 from app.models.material import Material
 from app.schemas.product import (
     ProductCreate,
@@ -47,7 +48,9 @@ async def _get_product(
     """Get product and verify ownership"""
     result = await db.execute(
         select(Product).where(
-            (Product.id == product_id) & (Product.user_id == user.id)
+            (Product.id == product_id)
+            & (Product.user_id == user.id)
+            & Product.is_archived.is_(False)
         )
     )
     product = result.scalars().first()
@@ -105,6 +108,7 @@ async def list_products(
 ):
     """List all products for current user with pagination"""
     def _apply_filters(q):
+        q = q.where(Product.is_archived.is_(False))
         if category:
             q = q.where(Product.category == category)
         if in_stock is not None:
@@ -290,6 +294,15 @@ async def delete_product(
 ):
     """Delete a product"""
     product = await _get_product(product_id, user, db)
+    sales_result = await db.execute(
+        select(func.count(SaleItem.id)).where(
+            (SaleItem.product_id == product.id) & (SaleItem.user_id == user.id)
+        )
+    )
+    if sales_result.scalar_one() > 0:
+        product.is_archived = True
+        await db.commit()
+        return
     await db.delete(product)
     await db.commit()
 
