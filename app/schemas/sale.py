@@ -43,10 +43,10 @@ class SaleOut(BaseModel):
     notes: Optional[str] = None
     total_amount: Optional[Decimal] = None
     created_at: datetime
+    items: List[SaleItemOut] = []
 
     model_config = {"from_attributes": True}
 
 
 class SaleDetailOut(SaleOut):
-    items: Optional[List[SaleItemOut]] = []
     channel_name: Optional[str] = None

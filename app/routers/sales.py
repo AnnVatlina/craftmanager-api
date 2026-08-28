@@ -30,8 +30,23 @@ async def _get_sale(sale_id, user: User, db: AsyncSession) -> Sale:
     return sale
 
 
+def _sale_items_out(sale: Sale) -> list[SaleItemOut]:
+    return [
+        SaleItemOut(
+            id=item.id, sale_id=item.sale_id, product_id=item.product_id,
+            quantity=item.quantity, price=item.price,
+            product_name=item.product.name if item.product else None,
+        )
+        for item in sale.items
+    ]
+
+
 def _enrich_sale(sale: Sale) -> SaleOut:
-    return SaleOut(**sale.__dict__, total_amount=calc_sale_total_amount(sale))
+    return SaleOut(
+        **{k: v for k, v in sale.__dict__.items() if k != "items"},
+        total_amount=calc_sale_total_amount(sale),
+        items=_sale_items_out(sale),
+    )
 
 
 @router.get("", response_model=dict)
@@ -42,7 +57,11 @@ async def list_sales(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Sale).options(selectinload(Sale.items)).where(Sale.user_id == user.id)
+    query = (
+        select(Sale)
+        .options(selectinload(Sale.items).selectinload(SaleItem.product))
+        .where(Sale.user_id == user.id)
+    )
     if channel_id:
         query = query.where(Sale.channel_id == channel_id)
     if date_from:
@@ -94,7 +113,9 @@ async def create_sale(
 
     await db.commit()
     result = await db.execute(
-        select(Sale).options(selectinload(Sale.items)).where(Sale.id == new_sale.id)
+        select(Sale)
+        .options(selectinload(Sale.items).selectinload(SaleItem.product))
+        .where(Sale.id == new_sale.id)
     )
     new_sale = result.scalars().first()
     return {"data": _enrich_sale(new_sale)}
@@ -118,18 +139,10 @@ async def get_sale(
     if not sale:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sale not found")
 
-    enriched_items = [
-        SaleItemOut(
-            id=item.id, sale_id=item.sale_id, product_id=item.product_id,
-            quantity=item.quantity, price=item.price,
-            product_name=item.product.name if item.product else None,
-        )
-        for item in sale.items
-    ]
-
     sale_detail = SaleDetailOut(
-        **SaleOut(**sale.__dict__, total_amount=calc_sale_total_amount(sale)).model_dump(),
-        items=enriched_items,
+        **{k: v for k, v in sale.__dict__.items() if k != "items"},
+        total_amount=calc_sale_total_amount(sale),
+        items=_sale_items_out(sale),
         channel_name=sale.channel.name if sale.channel else None,
     )
     return {"data": sale_detail}
@@ -147,7 +160,9 @@ async def update_sale(
         setattr(sale, key, value)
     await db.commit()
     result = await db.execute(
-        select(Sale).options(selectinload(Sale.items)).where(Sale.id == sale.id)
+        select(Sale)
+        .options(selectinload(Sale.items).selectinload(SaleItem.product))
+        .where(Sale.id == sale.id)
     )
     sale = result.scalars().first()
     return {"data": _enrich_sale(sale)}

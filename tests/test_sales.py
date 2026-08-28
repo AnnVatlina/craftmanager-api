@@ -55,6 +55,30 @@ async def test_list_sales(client: AsyncClient, auth_headers, product):
 
 
 @pytest.mark.asyncio
+async def test_list_sales_includes_items_with_product_name(client: AsyncClient, auth_headers, product):
+    """GET /sales must include items (with product_name) so the UI can show a row per product"""
+    await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2024-01-15",
+            "items": [
+                {"product_id": str(product.id), "quantity": 2, "price": "50.00"},
+                {"product_id": None, "quantity": 1, "price": "5.00"},
+            ],
+        },
+    )
+
+    response = await client.get("/api/v1/sales", headers=auth_headers)
+    assert response.status_code == 200
+    sale = response.json()["data"][0]
+    assert len(sale["items"]) == 2
+    names = {item["product_name"] for item in sale["items"]}
+    assert product.name in names
+    assert None in names
+
+
+@pytest.mark.asyncio
 async def test_get_sale(client: AsyncClient, auth_headers, product):
     """Test getting a specific sale"""
     create_response = await client.post(
