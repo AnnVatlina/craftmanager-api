@@ -11,7 +11,7 @@ users
   │ 1
   │
   ├──* products ──────────┬──* product_materials *──┬── materials ──* material_purchases
-  │                       │                          │
+  │                       ├──* product_productions   │
   │                       └──* sale_items            │
   │                              │ *                 │
   ├──* sales_channels ──* sales ─┘                    │
@@ -44,9 +44,12 @@ users
 | sale_price | NUMERIC(10,2) NOT NULL | цена продажи |
 | stock_qty | INTEGER DEFAULT 0 | остаток готовых изделий |
 | photo | TEXT | base64 JPEG, см. [BUSINESS.md](BUSINESS.md#фото-изделия) |
+| is_archived | BOOLEAN DEFAULT false NOT NULL | true — изделие удалено при наличии продаж (см. ниже), скрыто из активных списков |
 | created_at | DATETIME | |
 
 Индекс: `user_id`.
+
+Удаление изделия без продаж выполняется физически. Изделие с продажами вместо этого архивируется (`is_archived = true`): скрывается из активных списков, недоступно для новых продаж, пополнения и планов ярмарок, но его продажи и партии производства сохраняются.
 
 ### materials
 | поле | тип | описание |
@@ -75,6 +78,23 @@ users
 Ограничение: `UNIQUE(product_id, material_id)` — материал нельзя добавить в состав дважды, только менять количество.
 
 Удаление материала каскадно удаляет все `product_materials`, где он использован (`ON DELETE CASCADE`) — состав изделий "теряет" материал молча, без предупреждения на бэкенде. Себестоимость такого изделия при следующем запросе просто пересчитается без учёта удалённого материала.
+
+### product_productions
+Журнал партий производства изделия — источник данных для истории пополнений (`GET /products/{id}/productions`) и экспорта.
+
+| поле | тип | описание |
+|---|---|---|
+| id | UUID PK | |
+| user_id | UUID FK→users CASCADE | |
+| product_id | UUID FK→products CASCADE | |
+| quantity | INTEGER NOT NULL, `> 0` | количество произведённого в этой партии |
+| produced_at | DATE NOT NULL | дата производства, по умолчанию сегодня |
+| source | VARCHAR NOT NULL DEFAULT 'production' | `production` (обычное пополнение) \| `backfill` (см. ниже) \| `correction` |
+| created_at | DATETIME | |
+
+Индексы: `user_id`, `product_id`, `produced_at`.
+
+Запись создаётся автоматически при создании изделия с `stock_qty > 0`, при увеличении `stock_qty` через `PUT /products/{id}` и при каждом `POST /products/{id}/restock` — см. [BUSINESS.md](BUSINESS.md#производство-и-журнал-партий). Для изделий, существовавших до появления этой таблицы, при старте сервера выполняется идемпотентный backfill (источник `backfill`), см. BUSINESS.md.
 
 ### material_purchases
 Журнал пополнений склада материалов — источник данных для дашборда (`material_expenses`) и экспорта.
