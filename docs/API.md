@@ -67,7 +67,7 @@
 | Метод | Путь | Query/Body | Описание |
 |---|---|---|---|
 | GET | `/sales` | `channel_id?, date_from?, date_to?` | Список с `total_amount`, посчитанным на лету. |
-| POST | `/sales` | `{channel_id?, sale_date, notes?, items: [{product_id?, quantity, price}]}` | Списывает `stock_qty` изделий по позициям. |
+| POST | `/sales` | `{channel_id?, sale_date, notes?, items: [{product_id?, quantity, price}]}` | Списывает `stock_qty` изделий по позициям. `quantity` и `price` должны быть > 0 (422 иначе). |
 | GET | `/sales/{id}` | — | Продажа + позиции (с `product_name`) + `channel_name`. |
 | PUT | `/sales/{id}` | `{channel_id?, sale_date?, notes?}` | Только "шапка", позиции не редактируются. |
 | DELETE | `/sales/{id}` | — | Восстанавливает `stock_qty` изделий по позициям (если изделие ещё существует). |

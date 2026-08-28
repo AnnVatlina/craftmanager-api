@@ -156,3 +156,43 @@ async def test_sale_not_found_for_other_user(client: AsyncClient, second_auth_he
         headers=second_auth_headers,
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_sale_rejects_non_positive_quantity(client: AsyncClient, auth_headers, product):
+    """Quantity <= 0 must be rejected — it would inflate stock instead of deducting it"""
+    response = await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2024-01-15",
+            "items": [
+                {
+                    "product_id": str(product.id),
+                    "quantity": 0,
+                    "price": "50.00",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_sale_rejects_negative_price(client: AsyncClient, auth_headers, product):
+    """Negative price must be rejected — it would make total_amount negative"""
+    response = await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2024-01-15",
+            "items": [
+                {
+                    "product_id": str(product.id),
+                    "quantity": 1,
+                    "price": "-10.00",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422

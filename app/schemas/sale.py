@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
@@ -7,8 +7,8 @@ from uuid import UUID
 
 class SaleItemCreate(BaseModel):
     product_id: Optional[UUID] = None
-    quantity: int
-    price: Decimal
+    quantity: int = Field(gt=0)
+    price: Decimal = Field(gt=0)
 
 
 class SaleItemOut(BaseModel):
