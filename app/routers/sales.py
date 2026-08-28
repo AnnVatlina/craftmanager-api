@@ -1,6 +1,8 @@
+import math
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -54,24 +56,44 @@ async def list_sales(
     channel_id: Optional[str] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    page: int = 1,
+    per_page: int = 20,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = (
+    def _apply_filters(q):
+        if channel_id:
+            q = q.where(Sale.channel_id == channel_id)
+        if date_from:
+            q = q.where(Sale.sale_date >= date_from)
+        if date_to:
+            q = q.where(Sale.sale_date <= date_to)
+        return q
+
+    agg_query = _apply_filters(
+        select(func.count(Sale.id)).where(Sale.user_id == user.id)
+    )
+    total = (await db.execute(agg_query)).scalar()
+
+    offset = (page - 1) * per_page
+    page_query = _apply_filters(
         select(Sale)
         .options(selectinload(Sale.items).selectinload(SaleItem.product))
         .where(Sale.user_id == user.id)
-    )
-    if channel_id:
-        query = query.where(Sale.channel_id == channel_id)
-    if date_from:
-        query = query.where(Sale.sale_date >= date_from)
-    if date_to:
-        query = query.where(Sale.sale_date <= date_to)
-    result = await db.execute(query)
+    ).order_by(Sale.sale_date.desc(), Sale.created_at.desc()).offset(offset).limit(per_page)
+
+    result = await db.execute(page_query)
     sales = result.scalars().all()
     enriched = [_enrich_sale(s) for s in sales]
-    return {"data": enriched, "meta": {"total": len(enriched)}}
+    return {
+        "data": enriched,
+        "meta": {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": math.ceil(total / per_page) if total else 1,
+        },
+    }
 
 
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)

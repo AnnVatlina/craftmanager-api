@@ -55,6 +55,32 @@ async def test_list_sales(client: AsyncClient, auth_headers, product):
 
 
 @pytest.mark.asyncio
+async def test_list_sales_pagination(client: AsyncClient, auth_headers, product):
+    """GET /sales paginates like GET /products, newest sale_date first"""
+    for day in ("2024-01-01", "2024-01-02", "2024-01-03"):
+        await client.post(
+            "/api/v1/sales",
+            headers=auth_headers,
+            json={
+                "sale_date": day,
+                "items": [{"product_id": str(product.id), "quantity": 1, "price": "10.00"}],
+            },
+        )
+
+    response = await client.get("/api/v1/sales?page=1&per_page=2", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["data"]) == 2
+    assert body["data"][0]["sale_date"] == "2024-01-03"
+    assert body["meta"] == {"total": 3, "page": 1, "per_page": 2, "pages": 2}
+
+    response2 = await client.get("/api/v1/sales?page=2&per_page=2", headers=auth_headers)
+    body2 = response2.json()
+    assert len(body2["data"]) == 1
+    assert body2["data"][0]["sale_date"] == "2024-01-01"
+
+
+@pytest.mark.asyncio
 async def test_list_sales_includes_items_with_product_name(client: AsyncClient, auth_headers, product):
     """GET /sales must include items (with product_name) so the UI can show a row per product"""
     await client.post(
