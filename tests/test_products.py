@@ -1,3 +1,4 @@
+import uuid
 import pytest
 from httpx import AsyncClient
 from decimal import Decimal
@@ -90,6 +91,84 @@ async def test_list_product_productions(client: AsyncClient, auth_headers, produ
     assert data["meta"]["total"] == 2
     assert [item["quantity"] for item in data["data"]] == [4, 2]
     assert [item["produced_at"] for item in data["data"]] == ["2026-08-20", "2026-08-01"]
+
+
+@pytest.mark.asyncio
+async def test_update_product_production_adjusts_stock_by_the_difference(client: AsyncClient, auth_headers, product):
+    """product.stock_qty starts at 10; restocking +3 makes it 13.
+    Correcting the batch from 3 to 5 (a typo fix) should bump stock_qty to 15."""
+    restock_resp = await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 3, "produced_at": "2026-08-01"},
+    )
+    production_id = (
+        await client.get(f"/api/v1/products/{product.id}/productions", headers=auth_headers)
+    ).json()["data"][0]["id"]
+    assert restock_resp.json()["data"]["stock_qty"] == 13
+
+    response = await client.put(
+        f"/api/v1/products/{product.id}/productions/{production_id}",
+        headers=auth_headers,
+        json={"quantity": 5, "produced_at": "2026-08-02"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["quantity"] == 5
+    assert response.json()["data"]["produced_at"] == "2026-08-02"
+
+    product_resp = await client.get(f"/api/v1/products/{product.id}", headers=auth_headers)
+    assert product_resp.json()["data"]["stock_qty"] == 15
+
+
+@pytest.mark.asyncio
+async def test_delete_product_production_reverses_stock(client: AsyncClient, auth_headers, product):
+    """Deleting a mistaken production batch (+3) should bring stock_qty back to 10."""
+    await client.post(
+        f"/api/v1/products/{product.id}/restock",
+        headers=auth_headers,
+        json={"qty": 3, "produced_at": "2026-08-01"},
+    )
+    production_id = (
+        await client.get(f"/api/v1/products/{product.id}/productions", headers=auth_headers)
+    ).json()["data"][0]["id"]
+
+    response = await client.delete(
+        f"/api/v1/products/{product.id}/productions/{production_id}", headers=auth_headers
+    )
+    assert response.status_code == 204
+
+    product_resp = await client.get(f"/api/v1/products/{product.id}", headers=auth_headers)
+    assert product_resp.json()["data"]["stock_qty"] == 10
+
+    list_resp = await client.get(f"/api/v1/products/{product.id}/productions", headers=auth_headers)
+    assert list_resp.json()["meta"]["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_update_product_production_not_found_for_another_products_batch(
+    client: AsyncClient, auth_headers, product, db_session
+):
+    other = Product(
+        id=uuid.uuid4(), user_id=product.user_id, name="Other Toy", sale_price="20.00", stock_qty=1,
+    )
+    db_session.add(other)
+    await db_session.commit()
+
+    await client.post(
+        f"/api/v1/products/{other.id}/restock",
+        headers=auth_headers,
+        json={"qty": 1, "produced_at": "2026-08-01"},
+    )
+    other_production_id = (
+        await client.get(f"/api/v1/products/{other.id}/productions", headers=auth_headers)
+    ).json()["data"][0]["id"]
+
+    response = await client.put(
+        f"/api/v1/products/{product.id}/productions/{other_production_id}",
+        headers=auth_headers,
+        json={"quantity": 9},
+    )
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

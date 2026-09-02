@@ -23,6 +23,7 @@ from app.schemas.product import (
     ProductMaterialItemCreate,
     ProductMaterialItemOut,
     ProductRestockRequest,
+    ProductProductionUpdate,
 )
 from app.auth.dependencies import get_current_user
 from app.services.product import calc_product_cost_price
@@ -320,18 +321,86 @@ async def list_product_productions(
     )
     productions = result.scalars().all()
     return {
-        "data": [
-            {
-                "id": production.id,
-                "quantity": production.quantity,
-                "produced_at": production.produced_at,
-                "source": production.source,
-                "created_at": production.created_at,
-            }
-            for production in productions
-        ],
+        "data": [_production_out(production) for production in productions],
         "meta": {"total": len(productions)},
     }
+
+
+async def _get_production(
+    product_id, production_id, user: User, db: AsyncSession
+) -> ProductProduction:
+    """Get a production batch record and verify ownership"""
+    result = await db.execute(
+        select(ProductProduction).where(
+            (ProductProduction.id == production_id)
+            & (ProductProduction.product_id == product_id)
+            & (ProductProduction.user_id == user.id)
+        )
+    )
+    production = result.scalars().first()
+    if not production:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Production record not found",
+        )
+    return production
+
+
+def _production_out(production: ProductProduction) -> dict:
+    return {
+        "id": production.id,
+        "quantity": production.quantity,
+        "produced_at": production.produced_at,
+        "source": production.source,
+        "created_at": production.created_at,
+    }
+
+
+@router.put("/{product_id}/productions/{production_id}", response_model=dict)
+async def update_product_production(
+    product_id,
+    production_id,
+    payload: ProductProductionUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Correct a production batch entry (e.g. a typo in quantity or date).
+
+    Only adjusts the product's stock_qty by the quantity difference — it does not
+    touch material stock, since the product's material composition may have
+    changed since the batch was recorded (see PUT /products for the same asymmetry).
+    """
+    product = await _get_product(product_id, user, db)
+    production = await _get_production(product.id, production_id, user, db)
+
+    if payload.quantity is not None and payload.quantity != production.quantity:
+        product.stock_qty += payload.quantity - production.quantity
+        production.quantity = payload.quantity
+    if payload.produced_at is not None:
+        production.produced_at = payload.produced_at
+
+    await db.commit()
+    await db.refresh(production)
+    return {"data": _production_out(production)}
+
+
+@router.delete("/{product_id}/productions/{production_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_production(
+    product_id,
+    production_id,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a production batch entry, reversing its effect on stock_qty.
+
+    Like the update above, does not touch material stock.
+    """
+    product = await _get_product(product_id, user, db)
+    production = await _get_production(product.id, production_id, user, db)
+
+    product.stock_qty -= production.quantity
+    await db.delete(production)
+    await db.commit()
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)

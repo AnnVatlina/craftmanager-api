@@ -48,6 +48,11 @@ class ProductRestockRequest(BaseModel):
     produced_at: Optional[date] = None
 
 
+class ProductProductionUpdate(BaseModel):
+    quantity: Optional[int] = Field(default=None, gt=0)
+    produced_at: Optional[date] = None
+
+
 class ProductOut(BaseModel):
     id: UUID
     user_id: UUID
