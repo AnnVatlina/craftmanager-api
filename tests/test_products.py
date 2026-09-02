@@ -128,6 +128,42 @@ async def test_list_products_in_stock_summary_ignores_in_stock_filter(client: As
 
 
 @pytest.mark.asyncio
+async def test_list_products_in_stock_summary_drops_after_selling_out_a_product(client: AsyncClient, auth_headers):
+    """Selling the last unit of a product should remove it from in_stock_count/value
+    on the very next GET /products, regardless of the ?in_stock= filter."""
+    create_resp = await client.post(
+        "/api/v1/products",
+        headers=auth_headers,
+        json={"name": "Sold Out Toy", "sale_price": "50.00", "stock_qty": 1},
+    )
+    product_id = create_resp.json()["data"]["id"]
+
+    before = await client.get("/api/v1/products", headers=auth_headers)
+    before_meta = before.json()["meta"]
+    assert before_meta["in_stock_count"] == 1
+    assert float(before_meta["in_stock_value"]) == 50.0
+
+    sale_resp = await client.post(
+        "/api/v1/sales",
+        headers=auth_headers,
+        json={
+            "sale_date": "2026-09-02",
+            "items": [{"product_id": product_id, "quantity": 1, "price": "50.00"}],
+        },
+    )
+    assert sale_resp.status_code == 201
+
+    product_after = await client.get(f"/api/v1/products/{product_id}", headers=auth_headers)
+    assert product_after.json()["data"]["stock_qty"] == 0
+
+    for params in ({}, {"in_stock": "true"}, {"in_stock": "false"}):
+        after = await client.get("/api/v1/products", headers=auth_headers, params=params)
+        after_meta = after.json()["meta"]
+        assert after_meta["in_stock_count"] == 0
+        assert float(after_meta["in_stock_value"]) == 0.0
+
+
+@pytest.mark.asyncio
 async def test_get_product(client: AsyncClient, auth_headers, product):
     """Test getting a specific product"""
     response = await client.get(
