@@ -107,12 +107,13 @@ async def list_products(
     db: AsyncSession = Depends(get_db),
 ):
     """List all products for current user with pagination"""
-    def _apply_filters(q):
+    def _apply_filters(q, force_in_stock=None):
         q = q.where(Product.is_archived.is_(False))
         if category:
             q = q.where(Product.category == category)
-        if in_stock is not None:
-            q = q.where(Product.stock_qty > 0) if in_stock else q.where(Product.stock_qty == 0)
+        effective_in_stock = force_in_stock if force_in_stock is not None else in_stock
+        if effective_in_stock is not None:
+            q = q.where(Product.stock_qty > 0) if effective_in_stock else q.where(Product.stock_qty == 0)
         if search:
             q = q.where(Product.name.ilike(f"%{search}%"))
         return q
@@ -125,6 +126,18 @@ async def list_products(
     )
     agg_result = await db.execute(agg_query)
     total, total_stock_value = agg_result.first()
+
+    # In-stock count/value are always computed as if in_stock=True, regardless of
+    # the `in_stock` filter, so the UI can show a stable "в наличии" summary.
+    in_stock_agg_query = _apply_filters(
+        select(
+            func.count(Product.id),
+            func.coalesce(func.sum(Product.stock_qty * Product.sale_price), 0),
+        ).where(Product.user_id == user.id),
+        force_in_stock=True,
+    )
+    in_stock_agg_result = await db.execute(in_stock_agg_query)
+    in_stock_count, in_stock_value = in_stock_agg_result.first()
 
     offset = (page - 1) * per_page
     page_query = _apply_filters(
@@ -148,6 +161,8 @@ async def list_products(
             "per_page": per_page,
             "pages": math.ceil(total / per_page) if total else 1,
             "total_stock_value": total_stock_value,
+            "in_stock_count": in_stock_count,
+            "in_stock_value": in_stock_value,
         },
     }
 

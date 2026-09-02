@@ -16,7 +16,7 @@
 
 | Метод | Путь | Query/Body | Описание |
 |---|---|---|---|
-| GET | `/products` | `category?, in_stock?, search?, page=1, per_page=20` | Пагинированный список + `cost_price` на каждой записи. `search` — регистронезависимая подстрока по названию. `meta`: `total, page, per_page, pages, total_stock_value`. |
+| GET | `/products` | `category?, in_stock?, search?, page=1, per_page=20` | Пагинированный список + `cost_price` на каждой записи. `search` — регистронезависимая подстрока по названию. `meta`: `total, page, per_page, pages, total_stock_value` (зависят от `in_stock`), а также `in_stock_count, in_stock_value` — всегда посчитаны как если бы `in_stock=true` (с учётом `category`/`search`, но независимо от переданного `in_stock`). |
 | POST | `/products` | `{name, description?, category?, sale_price, stock_qty?, produced_at?}` | Создание. При `stock_qty > 0` создаёт партию производства; дата по умолчанию — сегодня. Начальный остаток не списывает материалы. |
 | GET | `/products/{id}` | — | Изделие + состав материалов + `cost_price`. |
 | PUT | `/products/{id}` | любое подмножество полей create | Увеличение `stock_qty` создаёт партию на разницу и списывает материалы состава; дату можно передать через `produced_at`. |

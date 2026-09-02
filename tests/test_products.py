@@ -105,6 +105,29 @@ async def test_list_products(client: AsyncClient, auth_headers, product):
 
 
 @pytest.mark.asyncio
+async def test_list_products_in_stock_summary_ignores_in_stock_filter(client: AsyncClient, auth_headers):
+    """meta.in_stock_count/in_stock_value should always reflect stock_qty > 0,
+    regardless of the ?in_stock= filter applied to the returned page."""
+    await client.post(
+        "/api/v1/products",
+        headers=auth_headers,
+        json={"name": "In Stock Toy", "sale_price": "10.00", "stock_qty": 5},
+    )
+    await client.post(
+        "/api/v1/products",
+        headers=auth_headers,
+        json={"name": "Out Of Stock Toy", "sale_price": "20.00", "stock_qty": 0},
+    )
+
+    for params in ({}, {"in_stock": "true"}, {"in_stock": "false"}):
+        response = await client.get("/api/v1/products", headers=auth_headers, params=params)
+        assert response.status_code == 200
+        meta = response.json()["meta"]
+        assert meta["in_stock_count"] == 1
+        assert float(meta["in_stock_value"]) == 50.0
+
+
+@pytest.mark.asyncio
 async def test_get_product(client: AsyncClient, auth_headers, product):
     """Test getting a specific product"""
     response = await client.get(
