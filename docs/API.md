@@ -89,6 +89,7 @@
 | GET | `/dashboard/summary` | `date_from?, date_to?` | `{total_revenue, total_expenses, manual_expenses, material_expenses, profit}`. См. [BUSINESS.md](BUSINESS.md#8-дашборд) про то, что это не COGS-прибыль. |
 | GET | `/dashboard/top-products` | `date_from?, date_to?, limit=10` | `[{product_id, product_name, revenue, quantity}]`, только по существующим изделиям. |
 | GET | `/dashboard/low-stock` | `threshold=5` | Изделия с `stock_qty <= threshold`, значение по умолчанию не подтягивается из `user_settings` автоматически. |
+| GET | `/dashboard/fair-channels` | — | Список каналов с `type == "ярмарка"`, по каждому — `{channel_id, channel_name, event_date, total_planned, total_sold, total_revenue}`. `total_planned` — сумма `planned_qty` из подготовки к ярмарке; `total_sold`/`total_revenue` — по факту продаж на этом канале. Без фильтра по датам — всегда за всё время. |
 
 ## Settings — `/settings`
 
