@@ -2,7 +2,7 @@ import math
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -54,6 +54,7 @@ def _enrich_sale(sale: Sale) -> SaleOut:
 @router.get("", response_model=dict)
 async def list_sales(
     channel_id: Optional[str] = None,
+    product_id: Optional[str] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     page: int = 1,
@@ -64,6 +65,10 @@ async def list_sales(
     def _apply_filters(q):
         if channel_id:
             q = q.where(Sale.channel_id == channel_id)
+        if product_id:
+            q = q.where(
+                exists().where((SaleItem.sale_id == Sale.id) & (SaleItem.product_id == product_id))
+            )
         if date_from:
             q = q.where(Sale.sale_date >= date_from)
         if date_to:

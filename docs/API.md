@@ -68,7 +68,7 @@
 
 | Метод | Путь | Query/Body | Описание |
 |---|---|---|---|
-| GET | `/sales` | `channel_id?, date_from?, date_to?, page=1, per_page=20` | Пагинированный список (новые по `sale_date` — первыми) с `total_amount`, посчитанным на лету, и позициями (`items`, с `product_name`) каждой продажи. `meta`: `total, page, per_page, pages`. |
+| GET | `/sales` | `channel_id?, product_id?, date_from?, date_to?, page=1, per_page=20` | Пагинированный список (новые по `sale_date` — первыми) с `total_amount`, посчитанным на лету, и позициями (`items`, с `product_name`) каждой продажи. `product_id` — только продажи, содержащие хотя бы одну позицию с этим изделием (позиции других изделий в той же продаже всё равно возвращаются все, фильтрация только по продажам, не по позициям). `meta`: `total, page, per_page, pages`. |
 | POST | `/sales` | `{channel_id?, sale_date, notes?, items: [{product_id?, quantity, price}]}` | Списывает `stock_qty` изделий по позициям. `quantity` и `price` должны быть > 0 (422 иначе). |
 | GET | `/sales/{id}` | — | Продажа + позиции (с `product_name`) + `channel_name`. |
 | PUT | `/sales/{id}` | `{channel_id?, sale_date?, notes?}` | Только "шапка", позиции не редактируются. |
